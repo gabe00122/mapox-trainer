@@ -10,6 +10,7 @@ def create_optimizer(
     match optimizer_config.type:
         case "adamw":
             return optax.chain(
+                optax.clip_by_global_norm(optimizer_config.max_norm),
                 optax.adamw(
                     optax.linear_schedule(
                         optimizer_config.learning_rate, 0, update_steps
@@ -19,10 +20,10 @@ def create_optimizer(
                     weight_decay=optimizer_config.weight_decay,
                     eps=optimizer_config.eps,
                 ),
-                optax.clip_by_global_norm(optimizer_config.max_norm),
             )
         case "muon":
             return optax.chain(
+                optax.clip_by_global_norm(optimizer_config.max_norm),
                 optax.contrib.muon(
                     optax.linear_schedule(
                         optimizer_config.learning_rate, 0, update_steps
@@ -33,7 +34,6 @@ def create_optimizer(
                     adam_b2=optimizer_config.beta2,
                     muon_weight_dimension_numbers=muon_dim_numbers_fn,
                 ),
-                optax.clip_by_global_norm(optimizer_config.max_norm),
             )
         case _:
             raise ValueError(f"Unknown optimizer type: {optimizer_config.type}")

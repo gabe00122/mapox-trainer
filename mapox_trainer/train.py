@@ -125,7 +125,7 @@ def evaluate(
             league_carry,
         )
 
-    rollout_state, rngs, env_state, _, _, _ = nnx.fori_loop(
+    rollout_state, rngs, env_state, timestep, carry, _ = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
