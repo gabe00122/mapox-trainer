@@ -1,8 +1,8 @@
 from flax import nnx
-from mapox import EnvironmentFactory
 from mapox.play import enjoy
 
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 
@@ -43,7 +43,7 @@ def play_from_run(
     config = experiment.config
     rngs = nnx.Rngs(seed)
 
-    env_factory = EnvironmentFactory()
+    env_factory = create_env_factory()
     env, task_count = env_factory.create_env(
         config.environment, config.max_env_steps, 1, env_name
     )

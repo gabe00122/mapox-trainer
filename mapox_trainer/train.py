@@ -7,12 +7,13 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from mapox import Environment, EnvironmentFactory, TimeStep
+from mapox import Environment, TimeStep
 from rich.console import Console
 from rich.progress import track
 
 from mapox_trainer.checkpointer import Checkpointer
 from mapox_trainer.config import Config, PPOConfig
+from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.logger import JaxLogger
 from mapox_trainer.model.network import TransformerActorCritic
@@ -331,7 +332,7 @@ def train_run(
     logger = JaxLogger(experiment, console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env_factory = EnvironmentFactory()
+    env_factory = create_env_factory()
     env, task_count = env_factory.create_env(
         experiment.config.environment, max_steps, experiment.config.num_envs
     )

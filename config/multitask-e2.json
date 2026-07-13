@@ -103,13 +103,15 @@
       },
       {
         "name": "scouts",
-        "num": 512,
+        "num": 256,
         "env": {
           "env_type": "scouts",
           "width": 40,
           "height": 40,
           "view_width": 11,
-          "view_height": 11
+          "view_height": 11,
+          "num_scouts": 3,
+          "num_harvesters": 1
         }
       },
       {

@@ -1,22 +1,24 @@
 {
-  "seed": "random",
-  "num_envs": 512,
-  "max_env_steps": 1024, 
+  "seed": 42,
+  "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 3814,
+  "update_steps": 1850,
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.0005,
+      "learning_rate": 0.003,
       "weight_decay": 0.00010718901435954378,
-      "eps": 0.0003125,
+      "eps": 1e-08,
       "beta1": 0.9353521064414686,
       "beta2": 0.9040155258546868,
       "max_norm": 0.39644292421090327
     },
     "model": {
       "obs_encoder": {
-        "obs_type": "linear"
+        "obs_type": "grid_cnn",
+        "kernels": [[3, 3], [3, 3], [3, 3]],
+        "strides": [[2, 2], [1, 1], [1, 1]],
+        "channels": [16, 32]
       },
       "hidden_features": 128,
       "layer": {
@@ -36,14 +38,14 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
+      "num_layers": 4,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
-        "min": -5.0,
-        "max": 35.0,
+        "min": -10.0,
+        "max": 10.0,
         "n_logits": 51,
-        "sigma": 0.2
+        "sigma": 0.10381270166884848
       },
       "activation": "gelu",
       "norm": "rms_norm",
@@ -53,21 +55,28 @@
     },
     "trainer": {
       "trainer_type": "ppo",
-      "epoch_count": 4,
+      "epoch_count": 1,
       "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.002,
+      "entropy_coef": 0.001,
       "vf_clip": 0.2827893540340816,
-      "discount": 0.999,
+      "discount": 0.9660902557298033,
       "gae_lambda": 0.9123716252262187,
       "normalize_advantage": true
     }
   },
+  "num_envs": 512,
   "environment": {
-    "env_type": "craftax"
+    "env_type": "find_return",
+    "num_agents": 8,
+    "width": 40,
+    "height": 40,
+    "view_width": 11,
+    "view_height": 11
   },
   "logger": {
-    "use_console": true,
-    "use_wandb": true
+    "use_console": false,
+    "use_wandb": false,
+    "use_jsonl": true
   }
 }

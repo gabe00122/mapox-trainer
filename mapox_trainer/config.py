@@ -5,6 +5,8 @@ from typing import Any, Literal, Tuple
 from mapox import EnvironmentConfig, MultiTaskConfig
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from mapox_trainer.envs import CraftaxConfig
+
 
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -158,7 +160,9 @@ class Config(BaseModel):
     num_checkpoints: int = 50
 
     learner: LearnerConfig
-    environment: EnvironmentConfig | MultiTaskConfig = Field(discriminator="env_type")
+    environment: EnvironmentConfig | MultiTaskConfig | CraftaxConfig = Field(
+        discriminator="env_type"
+    )
     logger: LoggerConfig = LoggerConfig()
 
     snapshot_league: bool = False

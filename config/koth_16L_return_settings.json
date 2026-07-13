@@ -1,8 +1,8 @@
 {
-  "seed": "random",
+  "seed": 42,
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 5000,
+  "update_steps": 4500,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -69,65 +69,22 @@
       "entropy_coef": 0.001,
       "vf_clip": 0.2827893540340816,
       "discount": 0.99,
-      "gae_lambda": 0.91,
+      "gae_lambda": 0.8,
       "normalize_advantage": true
     }
   },
+  "num_envs": 512,
   "environment": {
-    "env_type": "multi",
-    "envs": [
-      {
-        "name": "koth",
-        "num": 128,
-        "env": {
-          "env_type": "king_hill",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "stealth",
-        "num": 32,
-        "env": {
-          "env_type": "prey",
-          "width": 80,
-          "height": 80,
-          "num_sneakers": 24,
-          "num_chasers": 8,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "scouts",
-        "num": 512,
-        "env": {
-          "env_type": "scouts",
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "digging",
-        "num": 128,
-        "env": {
-          "env_type": "find_return",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      }
-    ]
+    "env_type": "king_hill",
+    "num_agents": 8,
+    "width": 40,
+    "height": 40,
+    "view_width": 11,
+    "view_height": 11
   },
   "logger": {
-    "use_console": true,
-    "use_wandb": true
+    "use_console": false,
+    "use_jsonl": true,
+    "use_wandb": false
   }
 }

@@ -14,9 +14,10 @@ import typer
 from rich import progress
 from rich.console import Console
 
-from mapox import EnvironmentFactory, Environment, TimeStep
+from mapox import Environment, TimeStep
 
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
@@ -175,7 +176,7 @@ def evaluate(
     experiment = Experiment.load(run_tokens[0], base_dir="results")
     max_steps = experiment.config.max_env_steps
 
-    env_factory = EnvironmentFactory()
+    env_factory = create_env_factory()
 
     env, task_count = env_factory.create_env(
         experiment.config.environment, max_steps, vec_count=32, env_name=env_name

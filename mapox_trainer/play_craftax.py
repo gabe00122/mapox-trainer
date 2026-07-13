@@ -10,11 +10,14 @@ from craftax.craftax.constants import (
 from craftax.craftax.play_craftax import CraftaxRenderer
 
 from mapox_trainer.checkpointer import Checkpointer
-from mapox_trainer.envs.third_party.craftax_wrapper import CraftaxEnvironment
+from mapox_trainer.envs.third_party.craftax_wrapper import (
+    CraftaxConfig,
+    CraftaxEnvironment,
+)
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
-from mapox.utils.video_writter import save_video
+from mapox.utils.video_writer import save_video
 
 
 def print_new_achievements(old_achievements, new_achievements):
@@ -29,7 +32,7 @@ def main(name: str, base_dir: str = "results", seed: int = 121):
     experiment: Experiment = Experiment.load(name, base_dir)
     max_steps = experiment.config.max_env_steps
 
-    env = CraftaxEnvironment()
+    env = CraftaxEnvironment(CraftaxConfig(), max_steps)
     rngs = nnx.Rngs(default=seed)
 
     model = TransformerActorCritic(

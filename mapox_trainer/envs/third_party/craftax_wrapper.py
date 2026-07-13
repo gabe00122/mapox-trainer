@@ -5,11 +5,9 @@ import jax
 from jax import numpy as jnp
 from pydantic import BaseModel, ConfigDict
 
-from craftax.craftax_env import make_craftax_env_from_name
-
-from mapox_trainer.envs.environment import Environment
-from mapox_trainer.envs.specs import DiscreteActionSpec, ObservationSpec
-from mapox import TimeStep
+from mapox import Environment, TimeStep
+from mapox.specs import DiscreteActionSpec, ObservationSpec
+from mapox.renderer import GridRenderSettings, GridRenderState
 
 
 PREPROCESS_SHAPE = (65, 55, 1)
@@ -28,8 +26,11 @@ def rgb2gray(rgb):
 
 
 class CraftaxEnvironment(Environment[CraftaxWrapperState]):
-    def __init__(self) -> None:
+    def __init__(self, config: "CraftaxConfig", length: int) -> None:
         super().__init__()
+
+        # craftax is an optional dependency (`uv sync --extra craftax`)
+        from craftax.craftax_env import make_craftax_env_from_name
 
         self._symbolic = True
 
@@ -127,31 +128,13 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         )
         return {"rewards": reward, "episodes": state.total_episodes.astype(jnp.float32)}
 
+    def get_render_settings(self) -> GridRenderSettings:
+        raise NotImplementedError("Craftax uses its own renderer (see play_craftax.py)")
+
+    def get_render_state(self, state: CraftaxWrapperState) -> GridRenderState:
+        raise NotImplementedError("Craftax uses its own renderer (see play_craftax.py)")
+
 
 class CraftaxConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     env_type: Literal["craftax"] = "craftax"
-
-
-def main():
-    rng = jax.random.PRNGKey(0)
-    rng, _rng = jax.random.split(rng)
-    _rngs = jax.random.split(_rng, 3)
-
-    env = make_craftax_env_from_name("Craftax-Pixels-v1", auto_reset=True)
-    env_params = env.default_params
-    print(env.action_space().n)
-
-    # Get an initial state and observation
-    obs, state = env.reset(_rngs[0], env_params)
-    print(obs.dtype)
-
-    # Pick random action
-    action = env.action_space(env_params).sample(_rngs[1])
-
-    # Step environment
-    obs, state, reward, done, info = env.step(_rngs[2], state, action, env_params)
-
-
-if __name__ == "__main__":
-    main()

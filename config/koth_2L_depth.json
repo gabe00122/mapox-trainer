@@ -1,14 +1,14 @@
 {
-  "seed": "random",
+  "seed": 42,
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 5000,
+  "update_steps": 2700,
   "learner": {
     "optimizer": {
       "type": "muon",
       "learning_rate": 0.003,
       "weight_decay": 0.00010718901435954378,
-      "eps": 1e-8,
+      "eps": 1e-08,
       "beta1": 0.9353521064414686,
       "beta2": 0.9040155258546868,
       "max_norm": 0.39644292421090327
@@ -16,19 +16,11 @@
     "model": {
       "obs_encoder": {
         "obs_type": "grid_cnn",
-        "kernels": [
-          [3, 3],
-          [3, 3],
-          [3, 3]
-        ],
-        "strides": [
-          [2, 2],
-          [1, 1],
-          [1, 1]
-        ],
+        "kernels": [[3, 3], [3, 3], [3, 3]],
+        "strides": [[2, 2], [1, 1], [1, 1]],
         "channels": [16, 32]
       },
-      "hidden_features": 256,
+      "hidden_features": 128,
       "layer": {
         "feed_forward": {
           "glu": true,
@@ -46,7 +38,7 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 16,
+      "num_layers": 2,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
@@ -64,70 +56,27 @@
     "trainer": {
       "trainer_type": "ppo",
       "epoch_count": 1,
-      "minibatch_count": 32,
+      "minibatch_count": 16,
       "vf_coef": 0.5392535826611433,
       "entropy_coef": 0.001,
       "vf_clip": 0.2827893540340816,
       "discount": 0.99,
-      "gae_lambda": 0.91,
+      "gae_lambda": 0.9123716252262187,
       "normalize_advantage": true
     }
   },
+  "num_envs": 512,
   "environment": {
-    "env_type": "multi",
-    "envs": [
-      {
-        "name": "koth",
-        "num": 128,
-        "env": {
-          "env_type": "king_hill",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "stealth",
-        "num": 32,
-        "env": {
-          "env_type": "prey",
-          "width": 80,
-          "height": 80,
-          "num_sneakers": 24,
-          "num_chasers": 8,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "scouts",
-        "num": 512,
-        "env": {
-          "env_type": "scouts",
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      },
-      {
-        "name": "digging",
-        "num": 128,
-        "env": {
-          "env_type": "find_return",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
-        }
-      }
-    ]
+    "env_type": "king_hill",
+    "num_agents": 8,
+    "width": 40,
+    "height": 40,
+    "view_width": 11,
+    "view_height": 11
   },
   "logger": {
-    "use_console": true,
-    "use_wandb": true
+    "use_console": false,
+    "use_wandb": false,
+    "use_jsonl": true
   }
 }
