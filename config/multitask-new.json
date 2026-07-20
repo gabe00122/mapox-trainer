@@ -6,7 +6,7 @@
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.0005,
+      "learning_rate": 0.003,
       "weight_decay": 0.00010718901435954378,
       "eps": 1e-8,
       "beta1": 0.9353521064414686,
