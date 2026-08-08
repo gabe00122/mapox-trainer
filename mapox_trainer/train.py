@@ -2,7 +2,7 @@ import math
 import random
 import time
 from functools import partial
-from typing import NamedTuple
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -22,22 +22,15 @@ from mapox_trainer.rollout import Rollout, RolloutState
 from mapox_trainer.util import add_seq_dim, count_parameters, format_count, lerp
 
 
-class TrainingLogs(NamedTuple):
-    value_loss: jax.Array
-    actor_loss: jax.Array
-    entropy_loss: jax.Array
-    total_loss: jax.Array
-    entropy_coef: jax.Array
-
-
-def create_training_logs() -> TrainingLogs:
-    return TrainingLogs(
-        value_loss=jnp.array(0.0),
-        actor_loss=jnp.array(0.0),
-        entropy_loss=jnp.array(0.0),
-        total_loss=jnp.array(0.0),
-        entropy_coef=jnp.array(0.0),
-    )
+def create_training_logs() -> dict[str, jax.Array]:
+    return {
+        "rewards": jnp.array(0.0),
+        "value_loss": jnp.array(0.0),
+        "actor_loss": jnp.array(0.0),
+        "entropy_loss": jnp.array(0.0),
+        "total_loss": jnp.array(0.0),
+        "entropy_coef": jnp.array(0.0),
+    }
 
 
 def evaluate(
@@ -46,8 +39,6 @@ def evaluate(
     rngs: nnx.Rngs,
     env: Environment,
     hypers: PPOConfig,
-    league_model: TransformerActorCritic | None = None,
-    progress: jax.Array | None = None,
 ):
     reset_key = rngs.env()
     env_state, timestep = env.reset(reset_key)
@@ -55,64 +46,26 @@ def evaluate(
     rollout_state = rollout.create_state()
     carry = model.initialize_carry(rollout.batch_size, rngs)
 
-    agent_idx = None
-    league_size = None
-    league_carry = None
-    if league_model is not None:
-        agent_idx = jax.random.permutation(rngs.env(), env.num_agents)
-        agent_inv_idx = (
-            jnp.zeros_like(agent_idx).at[agent_idx].set(jnp.arange(env.num_agents))
-        )
-
-        league_size = env.num_agents - rollout.batch_size
-        league_carry = league_model.initialize_carry(league_size, rngs)
-
-    def split_timestep(ts: TimeStep) -> tuple[TimeStep, TimeStep | None]:
-        if agent_idx is None:
-            return ts, None
-
-        ts = jax.tree.map(lambda xs: xs[agent_idx], ts)
-        league_timestep = jax.tree.map(lambda xs: xs[:league_size], ts)
-        timestep = jax.tree.map(lambda xs: xs[league_size:], ts)
-        return timestep, league_timestep
-
     def _step(i, x):
-        rollout_state, rngs, env_state, env_timestep, carry, league_carry = x
+        rollout_state, rngs, env_state, env_timestep, carry = x
 
         action_key = rngs.action()
         env_key = rngs.env()
 
-        if agent_idx is not None:
-            timestep, league_timestep = split_timestep(env_timestep)
-
-            _, league_policy, league_carry = league_model(
-                add_seq_dim(league_timestep), league_carry
-            )
-            league_actions = league_policy.sample(seed=rngs.action()).squeeze(axis=-1)
-        else:
-            league_actions = None
-            timestep = env_timestep
-
-        value_rep, policy, carry = model(add_seq_dim(timestep), carry)
+        value_rep, policy, carry = model(add_seq_dim(env_timestep), carry)
 
         action = policy.sample(seed=action_key)
-        log_prob = policy.log_prob(action).squeeze(axis=-1)
+        log_prob = cast(jax.Array, policy.log_prob(action)).squeeze(axis=-1)
         action = action.squeeze(axis=-1)
         value = model.get_value(value_rep).squeeze(axis=-1)
 
-        if league_actions is not None:
-            action = jnp.concatenate((league_actions, action), axis=0)
-            action = action[agent_inv_idx]
-
         env_state, next_timestep = env.step(env_state, action, env_key)
-
-        rollout_next_timestep, _ = split_timestep(next_timestep)
 
         rollout_state = rollout.store(
             rollout_state,
             step=i,
-            timestep=timestep,
-            next_timestep=rollout_next_timestep,
+            timestep=env_timestep,
+            next_timestep=next_timestep,
             log_prob=log_prob,
             value=value,
         )
@@ -123,10 +76,9 @@ def evaluate(
             env_state,
             next_timestep,
             carry,
-            league_carry,
         )
 
-    rollout_state, rngs, env_state, timestep, carry, _ = nnx.fori_loop(
+    rollout_state, rngs, env_state, timestep, carry = nnx.fori_loop(
         0,
         rollout.trajectory_length,
         _step,
@@ -136,12 +88,10 @@ def evaluate(
             env_state,
             timestep,
             carry,
-            league_carry,
         ),
     )
 
     # save the last value
-    timestep, _ = split_timestep(timestep)
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
     value = model.get_value(value_rep).squeeze(axis=-1)
     rollout_state = rollout_state._replace(
@@ -212,13 +162,14 @@ def ppo_loss(
         hypers.vf_coef * value_loss + actor_loss + entropy_coef_value * entropy_loss
     )
 
-    logs = TrainingLogs(
-        value_loss=value_loss,
-        actor_loss=actor_loss,
-        entropy_loss=entropy_loss,
-        total_loss=total_loss,
-        entropy_coef=entropy_coef_value,
-    )
+    logs = {
+        "rewards": jnp.mean(rollout.rewards),
+        "value_loss": value_loss,
+        "actor_loss": actor_loss,
+        "entropy_loss": entropy_loss,
+        "total_loss": total_loss,
+        "entropy_coef": entropy_coef_value,
+    }
 
     return total_loss, logs
 
@@ -230,7 +181,6 @@ def train(
     rollout: Rollout,
     env: Environment,
     config: Config,
-    fictitious_model: TransformerActorCritic | None = None,
 ):
     hypers = config.learner.trainer
 
@@ -270,8 +220,6 @@ def train(
             rngs,
             env,
             hypers,
-            fictitious_model,
-            progress,
         )
         optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
@@ -327,7 +275,6 @@ def train_run(
     console = Console()
 
     max_steps = experiment.config.max_env_steps
-    has_league = experiment.config.snapshot_league
 
     logger = JaxLogger(experiment, console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
@@ -339,10 +286,7 @@ def train_run(
 
     batch_size = env.num_agents
 
-    # todo the rollout is smaller because half the agents are the factious copy, these are not used for training
     rollout_size = batch_size
-    if has_league:
-        rollout_size //= 2
 
     rngs = nnx.Rngs(default=experiment.default_seed)
     rollout = Rollout(rollout_size, max_steps, env.observation_spec, env.action_spec)
@@ -383,10 +327,6 @@ def train_run(
     console.print(f"Parameter Count: {count_parameters(model)}")
     console.print(f"Agent Count: {env.num_agents}")
 
-    snapshot_league = None
-    if has_league:
-        snapshot_league = [nnx.clone(model)]
-
     checkpoint_interval: int | None = None
     if experiment.config.num_checkpoints > 0 and outer_updates > 0:
         checkpoint_interval = max(
@@ -399,12 +339,8 @@ def train_run(
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        league_model = None
-        if snapshot_league is not None:
-            league_model = random.choice(snapshot_league)
-
         optimizer, rngs, step, logs = jitted_train(
-            optimizer, rngs, step, rollout, env, experiment.config, league_model
+            optimizer, rngs, step, rollout, env, experiment.config
         )
 
         if profile and i >= 4:
@@ -432,9 +368,6 @@ def train_run(
         if checkpoint_interval is not None and (i + 1) % checkpoint_interval == 0:
             completed_updates = (i + 1) * experiment.config.updates_per_jit
             checkpointer.save(optimizer.model, completed_updates)
-
-            if snapshot_league is not None:
-                snapshot_league.append(nnx.clone(optimizer.model))
 
     checkpointer.save(optimizer.model, experiment.config.update_steps)
 
