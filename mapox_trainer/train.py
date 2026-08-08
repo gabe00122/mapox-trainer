@@ -164,7 +164,7 @@ def ppo_loss(
     )
 
     logs = {
-        "rewards": jnp.mean(rollout.rewards),
+        "rewards": rollout.rewards.sum(axis=1).mean(),
         "value_loss": value_loss,
         "actor_loss": actor_loss,
         "entropy_loss": entropy_loss,
@@ -256,7 +256,7 @@ def train(
     )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
-    return optimizer, rngs, step, {"algo": logs._asdict(), "env": env_logs}
+    return optimizer, rngs, step, {"algo": logs, "env": env_logs}
 
 
 def replicate_model(optimizer, sharding):
