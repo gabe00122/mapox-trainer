@@ -78,7 +78,7 @@
     "envs": [
       {
         "name": "koth",
-        "num": 128,
+        "num": 32,
         "env": {
           "env_type": "king_hill",
           "num_agents": 8,
@@ -90,7 +90,7 @@
       },
       {
         "name": "stealth",
-        "num": 32,
+        "num": 8,
         "env": {
           "env_type": "prey",
           "width": 80,
@@ -103,7 +103,7 @@
       },
       {
         "name": "scouts",
-        "num": 512,
+        "num": 128,
         "env": {
           "env_type": "scouts",
           "width": 40,
@@ -114,7 +114,7 @@
       },
       {
         "name": "digging",
-        "num": 128,
+        "num": 32,
         "env": {
           "env_type": "find_return",
           "num_agents": 8,

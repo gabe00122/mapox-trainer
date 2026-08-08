@@ -9,6 +9,7 @@ from flax import nnx
 import distrax
 
 from mapox import TimeStep, ObservationSpec
+from mapox_trainer.constants import index_type
 from mapox_trainer.config import (
     LayerConfig,
     TransformerActorCriticConfig,
@@ -349,7 +350,7 @@ class TransformerActorCritic(nnx.Module):
         _, policy, agent_state = self(add_seq_dim(timestep), agent_state)
 
         sample_rng, rng_key = jax.random.split(rng_key)
-        actions = policy.sample(seed=sample_rng).squeeze(axis=-1)
+        actions = policy.sample(seed=sample_rng).squeeze(axis=-1).astype(index_type)
 
         return agent_state, actions, rng_key
 

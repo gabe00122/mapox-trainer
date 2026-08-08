@@ -6,14 +6,13 @@ or wrong discount mask silently produces garbage training signal.
 
 import jax
 import jax.numpy as jnp
-import pytest
 from mapox import ActionSpec, ObservationSpec
 
-from mapox_trainer.rollout import Rollout, RolloutState
+from mapox_trainer.rollout import Rollout
 
 
 def make_rollout(batch_size: int = 2, trajectory_length: int = 4) -> Rollout:
-    obs_spec = ObservationSpec(shape=(3, 3, 2), dtype=jnp.uint8, max_value=(5, 5))
+    obs_spec = ObservationSpec(shape=(3, 3, 2), dtype=jnp.uint16, max_value=(5, 5))
     action_spec = ActionSpec(n=4)
     return Rollout(batch_size, trajectory_length, obs_spec, action_spec)
 
@@ -36,6 +35,13 @@ def manual_gae(rewards, values, terminated, discount, gae_lambda):
 
 
 class TestCalculateAdvantage:
+    def test_vocab_buffers_are_uint16(self):
+        state = make_rollout().create_state()
+
+        assert state.obs.dtype == jnp.uint16
+        assert state.actions.dtype == jnp.uint16
+        assert state.last_actions.dtype == jnp.uint16
+
     def test_single_step_no_termination(self):
         """Simplest case: one timestep, no episode boundary."""
         rollout = make_rollout(batch_size=1, trajectory_length=1)

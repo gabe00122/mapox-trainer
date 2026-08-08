@@ -1,3 +1,4 @@
 from jax import numpy as jnp
 
-index_type = jnp.int32
+# Mapox represents observation and action vocabulary IDs as uint16.
+index_type = jnp.uint16

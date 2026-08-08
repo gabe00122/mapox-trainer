@@ -80,7 +80,7 @@ class Rollout:
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32
             ),
             last_actions=jnp.zeros(
-                (self.batch_size, self.trajectory_length), dtype=jnp.int32
+                (self.batch_size, self.trajectory_length), dtype=index_type
             ),
             last_rewards=jnp.zeros(
                 (self.batch_size, self.trajectory_length), dtype=jnp.float32

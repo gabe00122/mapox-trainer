@@ -22,18 +22,15 @@ def create_optimizer(
                 ),
             )
         case "muon":
-            return optax.chain(
-                optax.clip_by_global_norm(optimizer_config.max_norm),
-                optax.contrib.muon(
-                    optax.linear_schedule(
-                        optimizer_config.learning_rate, 0, update_steps
-                    ),
-                    weight_decay=optimizer_config.weight_decay,
-                    adam_weight_decay=optimizer_config.weight_decay,
-                    adam_b1=optimizer_config.beta1,
-                    adam_b2=optimizer_config.beta2,
-                    muon_weight_dimension_numbers=muon_dim_numbers_fn,
+            return optax.contrib.muon(
+                optax.linear_schedule(
+                    optimizer_config.learning_rate, 0, update_steps
                 ),
+                weight_decay=optimizer_config.weight_decay,
+                adam_weight_decay=optimizer_config.weight_decay,
+                adam_b1=optimizer_config.beta1,
+                adam_b2=optimizer_config.beta2,
+                muon_weight_dimension_numbers=muon_dim_numbers_fn,
             )
         case _:
             raise ValueError(f"Unknown optimizer type: {optimizer_config.type}")

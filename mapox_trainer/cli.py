@@ -45,12 +45,15 @@ def train_cmd(
     distributed: bool = False,
     base_dir: str = "./results",
     name: str | None = None,
+    rust_env: bool = typer.Option(
+        False, help="Use mapox's Rust-backed environment for find_return training."
+    ),
 ):
     if distributed:
         jax.distributed.initialize()
     experiment = Experiment.from_config_file(config, base_dir)
 
-    train_run(experiment)
+    train_run(experiment, rust_env=rust_env)
 
 
 @app.command("profile")

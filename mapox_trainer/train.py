@@ -13,6 +13,7 @@ from rich.progress import track
 
 from mapox_trainer.checkpointer import Checkpointer
 from mapox_trainer.config import Config, PPOConfig
+from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.logger import JaxLogger
@@ -56,7 +57,7 @@ def evaluate(
 
         action = policy.sample(seed=action_key)
         log_prob = cast(jax.Array, policy.log_prob(action)).squeeze(axis=-1)
-        action = action.squeeze(axis=-1)
+        action = action.squeeze(axis=-1).astype(index_type)
         value = model.get_value(value_rep).squeeze(axis=-1)
 
         env_state, next_timestep = env.step(env_state, action, env_key)
@@ -271,6 +272,7 @@ def block_all(xs):
 def train_run(
     experiment: Experiment,
     profile: bool = False,
+    rust_env: bool = False,
 ):
     console = Console()
 
@@ -279,10 +281,21 @@ def train_run(
     logger = JaxLogger(experiment, console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    env_factory = create_env_factory()
-    env, task_count = env_factory.create_env(
-        experiment.config.environment, max_steps, experiment.config.num_envs
-    )
+    if rust_env:
+        if experiment.config.environment.env_type != "find_return":
+            raise ValueError("The Rust environment currently supports find_return only")
+
+        from mapox.envs.rust_env import RustEnv
+
+        env = RustEnv(
+            experiment.config.environment, num_envs=experiment.config.num_envs
+        )
+        task_count = 1
+    else:
+        env_factory = create_env_factory()
+        env, task_count = env_factory.create_env(
+            experiment.config.environment, max_steps, experiment.config.num_envs
+        )
 
     batch_size = env.num_agents
 

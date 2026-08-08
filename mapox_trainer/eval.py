@@ -17,6 +17,7 @@ from rich.console import Console
 from mapox import Environment, TimeStep
 
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
@@ -88,7 +89,7 @@ def _round(
         a1 = a1.sample(seed=rngs.action()).squeeze(-1)
         a2 = a2.sample(seed=rngs.action()).squeeze(-1)
 
-        actions = jnp.zeros((env.num_agents,), jnp.int32)
+        actions = jnp.zeros((env.num_agents,), index_type)
         actions = actions.at[policy1_idx].set(a1)
         actions = actions.at[policy2_idx].set(a2)
 

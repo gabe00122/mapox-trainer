@@ -1,89 +1,84 @@
 {
-  "seed": "random",
-  "max_env_steps": 512,
-  "updates_per_jit": 1,
-  "update_steps": 5000,
   "learner": {
-    "optimizer": {
-      "type": "muon",
-      "learning_rate": 0.001,
-      "weight_decay": 0.00010718901435954378,
-      "eps": 1e-8,
-      "beta1": 0.9353521064414686,
-      "beta2": 0.9040155258546868,
-      "max_norm": 0.39644292421090327
+  "model": {
+    "norm": "rms_norm",
+    "dtype": "bfloat16",
+    "layer": {
+      "history": {
+        "type": "attention",
+        "head_dim": 32,
+        "num_heads": 4,
+        "use_qk_norm": false,
+        "num_kv_heads": 1,
+        "sliding_window": null,
+        "rope_max_wavelength": 10000
+      },
+      "feed_forward": {
+        "glu": true,
+        "size": 768
+      },
+      "use_post_ffw_norm": false,
+      "use_post_attn_norm": false
     },
-    "model": {
-      "obs_encoder": {
-        "obs_type": "grid_cnn",
-        "kernels": [
-          [3, 3],
-          [3, 3],
-          [3, 3]
-        ],
-        "strides": [
-          [2, 2],
-          [1, 1],
-          [1, 1]
-        ],
-        "channels": [16, 32]
-      },
-      "hidden_features": 128,
-      "layer": {
-        "feed_forward": {
-          "glu": true,
-          "size": 768
-        },
-        "history": {
-          "type": "attention",
-          "num_heads": 4,
-          "num_kv_heads": 1,
-          "head_dim": 32,
-          "sliding_window": null,
-          "rope_max_wavelength": 10000.0,
-          "use_qk_norm": false
-        },
-        "use_post_attn_norm": false,
-        "use_post_ffw_norm": false
-      },
-      "num_layers": 16,
-      "value_hidden_dim": 768,
-      "value": {
-        "type": "hl_gauss",
-        "min": -10.0,
-        "max": 10.0,
-        "n_logits": 51,
-        "sigma": 0.10381270166884848
-      },
-      "activation": "gelu",
-      "norm": "rms_norm",
-      "kernel_init": "glorot_uniform",
-      "dtype": "bfloat16",
-      "param_dtype": "float32"
+    "value": {
+      "max": 10,
+      "min": -10,
+      "type": "hl_gauss",
+      "sigma": 0.3,
+      "n_logits": 51
     },
-    "trainer": {
-      "trainer_type": "ppo",
-      "epoch_count": 1,
-      "minibatch_count": 16,
-      "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.001,
-      "vf_clip": 0.2827893540340816,
-      "discount": 0.9660902557298033,
-      "gae_lambda": 0.9123716252262187,
-      "normalize_advantage": true
-    }
+    "activation": "gelu",
+    "num_layers": 8,
+    "kernel_init": "glorot_uniform",
+    "obs_encoder": {
+      "kernels": [[3, 3], [3, 3], [3, 3]],
+      "strides": [[2, 2], [1, 1], [1, 1]],
+      "channels": [16, 32],
+      "obs_type": "grid_cnn"
+    },
+    "param_dtype": "float32",
+    "hidden_features": 256,
+    "value_hidden_dim": 768
+  },
+  "trainer": {
+    "vf_clip": 0.1,
+    "vf_coef": 3.961649728218663,
+    "discount": 0.995,
+    "gae_lambda": 0.8041539043144189,
+    "epoch_count": 1,
+    "entropy_coef": 0.002901889285198761,
+    "trainer_type": "ppo",
+    "minibatch_count": 32,
+    "entropy_coef_end": 0,
+    "normalize_advantage": true
+  },
+  "optimizer": {
+    "eps": 1e-8,
+    "type": "muon",
+    "beta1": 0.9,
+    "beta2": 0.98,
+    "max_norm": 0.39644292421090327,
+    "weight_decay": 0.00000644516289841076,
+    "learning_rate": 0.00108986115210741
+  }
   },
   "num_envs": 512,
   "environment": {
-    "env_type": "find_return",
-    "num_agents": 8,
     "width": 40,
     "height": 40,
+    "env_type": "find_return",
+    "map_path": null,
+    "num_flags": 1,
+    "num_agents": 8,
     "view_width": 11,
-    "view_height": 11
+    "view_height": 11,
+    "digging_timeout": 5,
+    "treasure_reward": 1,
+    "mapgen_threshold": 0.3
   },
-  "logger": {
-    "use_console": true,
-    "use_wandb": true
-  }
+  "update_steps": 500,
+  "max_env_steps": 512,
+  "num_checkpoints": 50,
+  "snapshot_league": false,
+  "updates_per_jit": 1
 }
