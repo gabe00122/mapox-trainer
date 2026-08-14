@@ -272,7 +272,6 @@ def block_all(xs):
 def train_run(
     experiment: Experiment,
     profile: bool = False,
-    rust_env: bool = False,
 ):
     console = Console()
 
@@ -281,21 +280,10 @@ def train_run(
     logger = JaxLogger(experiment, console)
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
-    if rust_env:
-        if experiment.config.environment.env_type != "find_return":
-            raise ValueError("The Rust environment currently supports find_return only")
-
-        from mapox.envs.rust_env import RustEnv
-
-        env = RustEnv(
-            experiment.config.environment, num_envs=experiment.config.num_envs
-        )
-        task_count = 1
-    else:
-        env_factory = create_env_factory()
-        env, task_count = env_factory.create_env(
-            experiment.config.environment, max_steps, experiment.config.num_envs
-        )
+    env_factory = create_env_factory()
+    env, task_count = env_factory.create_env(
+        experiment.config.environment, max_steps, experiment.config.num_envs
+    )
 
     batch_size = env.num_agents
 
