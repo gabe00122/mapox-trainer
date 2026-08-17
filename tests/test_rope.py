@@ -6,7 +6,6 @@ These tests verify the key mathematical properties rather than exact values.
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from mapox_trainer.model.positional_embeddings import apply_rope
 

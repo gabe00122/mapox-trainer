@@ -1,24 +1,22 @@
-from functools import partial
-from mapox_trainer.util import add_seq_dim
+from collections.abc import Callable
+
+import distrax
 import jax
+from flax import nnx
 from jax import numpy as jnp
 from jax.typing import DTypeLike
-from typing import Callable, Any
+from mapox import ObservationSpec, TimeStep
 
-from flax import nnx
-import distrax
-
-from mapox import TimeStep, ObservationSpec
-from mapox_trainer.constants import index_type
 from mapox_trainer.config import (
+    HlGaussConfig,
     LayerConfig,
     TransformerActorCriticConfig,
 )
-from mapox_trainer.model.observation import create_obs_encoder
 from mapox_trainer.model.attention import AttentionBlock, KVCache
+from mapox_trainer.model.feed_forward import FFBlock, GLUBlock
+from mapox_trainer.model.observation import create_obs_encoder
 from mapox_trainer.model.rnn import RnnBlock
-from mapox_trainer.model.feed_forward import GLUBlock, FFBlock
-from mapox_trainer.values import HlGaussValue, MseValue
+from mapox_trainer.model.value import HlGaussHead, MseHead, ValueRepresentation
 
 
 def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
@@ -290,17 +288,19 @@ class TransformerActorCritic(nnx.Module):
             if config.value_hidden_dim is None
             else config.value_hidden_dim
         )
-        if config.value.type == "hl_gauss":
-            self.value_head = HlGaussValue(value_in_dim, config.value, rngs=rngs)
-        elif config.value.type == "mse":
-            self.value_head = MseValue(value_in_dim, rngs=rngs)
+
+        value_config = config.value
+        if isinstance(value_config, HlGaussConfig):
+            self.value_head = HlGaussHead(value_in_dim, value_config, rngs=rngs)
+        else:
+            self.value_head = MseHead(value_in_dim, rngs=rngs)
 
     def initialize_carry(self, batch_size: int, rngs):
         return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
 
     def __call__(
         self, ts: TimeStep, carry=None
-    ) -> tuple[jax.Array, distrax.Distribution, tuple[KVCache, ...] | None]:
+    ) -> tuple[ValueRepresentation, distrax.Distribution, tuple[KVCache, ...] | None]:
         obs_embedding = self.obs_encoder(ts.obs)
         reward_embedding = self.reward_encoder(ts.reward[..., None])
         action_embedding = self.action_embedder.encode(ts.last_action)
@@ -339,23 +339,5 @@ class TransformerActorCritic(nnx.Module):
             prevalue = nnx.gelu(prevalue)
 
         value = self.value_head(prevalue)
-        value_rep = value.astype(jnp.float32)
 
-        return value_rep, policy, carry
-
-    @partial(jax.jit, static_argnums=(0,), donate_argnums=(1, 3))
-    def sample_actions(
-        self, agent_state: Any, timestep: TimeStep, rng_key: jax.Array
-    ) -> tuple[Any, jax.Array, jax.Array]:
-        _, policy, agent_state = self(add_seq_dim(timestep), agent_state)
-
-        sample_rng, rng_key = jax.random.split(rng_key)
-        actions = policy.sample(seed=sample_rng).squeeze(axis=-1).astype(index_type)
-
-        return agent_state, actions, rng_key
-
-    def get_value(self, value_rep: jax.Array) -> jax.Array:
-        return self.value_head.get_value(value_rep)
-
-    def get_value_loss(self, value_rep: jax.Array, targets: jax.Array) -> jax.Array:
-        return self.value_head.get_loss(value_rep, targets)
+        return value, policy, carry

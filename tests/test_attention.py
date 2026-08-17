@@ -6,10 +6,9 @@ or wrong positions during inference while training looks fine.
 
 import jax
 import jax.numpy as jnp
-import pytest
 from flax import nnx
 
-from mapox_trainer.model.attention import AttentionBlock, KVCache
+from mapox_trainer.model.attention import AttentionBlock
 
 
 def make_attention(

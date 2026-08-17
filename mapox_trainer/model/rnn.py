@@ -1,8 +1,8 @@
-from flax import nnx
-from einops import rearrange
 import jax
-from jax.typing import DTypeLike
+from einops import rearrange
+from flax import nnx
 from jax import numpy as jnp
+from jax.typing import DTypeLike
 
 
 class RnnBlock(nnx.Module):

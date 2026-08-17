@@ -1,5 +1,4 @@
 import math
-import random
 import time
 from functools import partial
 from typing import cast
@@ -23,6 +22,14 @@ from mapox_trainer.rollout import Rollout, RolloutState
 from mapox_trainer.util import add_seq_dim, count_parameters, format_count, lerp
 
 
+def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
+    target_var = jnp.var(targets)
+    return jnp.where(
+        target_var > 0,
+        1.0 - jnp.var(targets - values) / target_var,
+        0.0,
+    )
+
 def create_training_logs() -> dict[str, jax.Array]:
     return {
         "rewards": jnp.array(0.0),
@@ -31,6 +38,11 @@ def create_training_logs() -> dict[str, jax.Array]:
         "entropy_loss": jnp.array(0.0),
         "total_loss": jnp.array(0.0),
         "entropy_coef": jnp.array(0.0),
+        "value": jnp.array(0.0),
+        "value_min": jnp.array(0.0),
+        "value_max": jnp.array(0.0),
+        "approx_kl": jnp.array(0.0),
+        "explained_variance": jnp.array(0.0),
     }
 
 
@@ -58,7 +70,7 @@ def evaluate(
         action = policy.sample(seed=action_key)
         log_prob = cast(jax.Array, policy.log_prob(action)).squeeze(axis=-1)
         action = action.squeeze(axis=-1).astype(index_type)
-        value = model.get_value(value_rep).squeeze(axis=-1)
+        value = value_rep.value().squeeze(axis=-1)
 
         env_state, next_timestep = env.step(env_state, action, env_key)
 
@@ -94,7 +106,7 @@ def evaluate(
 
     # save the last value
     value_rep, _, _ = model(add_seq_dim(timestep), carry)
-    value = model.get_value(value_rep).squeeze(axis=-1)
+    value = value_rep.value().squeeze(axis=-1)
     rollout_state = rollout_state._replace(
         values=rollout_state.values.at[:, -1].set(value)
     )
@@ -144,9 +156,11 @@ def ppo_loss(
     )
     log_probs = policy.log_prob(batch_actions)
 
-    value_loss = model.get_value_loss(value_rep, batch_target)
+    value_loss = value_rep.loss(batch_target)
+    value = value_rep.value()
 
-    ratio = jnp.exp(log_probs - batch_log_prob)
+    log_ratio = log_probs - batch_log_prob
+    ratio = jnp.exp(log_ratio)
 
     pg_loss1 = ratio * batch_advantage
     pg_loss2 = (
@@ -170,6 +184,11 @@ def ppo_loss(
         "entropy_loss": entropy_loss,
         "total_loss": total_loss,
         "entropy_coef": entropy_coef_value,
+        "value": jnp.mean(value),
+        "value_min": jnp.min(value),
+        "value_max": jnp.max(value),
+        "approx_kl": (ratio - 1 - log_ratio).mean(),
+        "explained_variance": explained_variance(value, batch_target)
     }
 
     return total_loss, logs

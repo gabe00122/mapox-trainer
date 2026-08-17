@@ -9,9 +9,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 from flax import nnx
+from mapox_trainer.values import HlGaussValue, MseValue, calculate_supports
 
 from mapox_trainer.config import HlGaussConfig
-from mapox_trainer.values import HlGaussValue, MseValue, calculate_supports
 
 
 class TestCalculateSupports:

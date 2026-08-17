@@ -1,18 +1,19 @@
+from typing import Any, cast
+
+import jax
+from flax import nnx
+from mapox import Environment, TimeStep
+from mapox.agent import Agent
 from mapox.envs.rust_env import RustEnv
 from mapox.rust_play import rust_enjoy
-from typing import Any, cast
-import jax
-from mapox import TimeStep, Environment
-from mapox.agent import Agent
-from flax import nnx
-from mapox.play import enjoy
 
+# from mapox.play import enjoy
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.util import add_seq_dim
-from mapox_trainer.constants import index_type
 
 
 @jax.jit(static_argnums=(0,), donate_argnums=(2, 3))

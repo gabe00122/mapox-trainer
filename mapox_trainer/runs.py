@@ -4,7 +4,7 @@ import json
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple, Literal
+from typing import Literal, NamedTuple
 
 from rich.console import Console
 from rich.table import Table

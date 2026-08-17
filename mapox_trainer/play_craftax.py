@@ -1,13 +1,13 @@
 import jax
 import pygame
-from flax import nnx
-from jax import numpy as jnp
-
 from craftax.craftax.constants import (
     BLOCK_PIXEL_SIZE_HUMAN,
     Achievement,
 )
 from craftax.craftax.play_craftax import CraftaxRenderer
+from flax import nnx
+from jax import numpy as jnp
+from mapox.utils.video_writer import save_video
 
 from mapox_trainer.checkpointer import Checkpointer
 from mapox_trainer.envs.third_party.craftax_wrapper import (
@@ -17,7 +17,6 @@ from mapox_trainer.envs.third_party.craftax_wrapper import (
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
-from mapox.utils.video_writer import save_video
 
 
 def print_new_achievements(old_achievements, new_achievements):
