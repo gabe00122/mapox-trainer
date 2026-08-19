@@ -47,7 +47,7 @@ def train_cmd(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(config, base_dir)
+    experiment = Experiment.from_config_file(config, base_dir, name=name)
 
     train_run(experiment)
 

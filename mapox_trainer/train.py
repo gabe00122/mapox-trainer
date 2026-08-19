@@ -156,7 +156,7 @@ def ppo_loss(
     )
     log_probs = policy.log_prob(batch_actions)
 
-    value_loss = value_rep.loss(batch_target)
+    value_loss = value_rep.loss(batch_target).mean()
     value = value_rep.value()
 
     log_ratio = log_probs - batch_log_prob

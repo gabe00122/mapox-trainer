@@ -9,6 +9,9 @@ from pydantic import BaseModel
 from mapox_trainer.config import Config, load_config
 
 
+def generate_unique_token() -> str:
+    return generate_slug(3)
+
 class ExperimentMeta(BaseModel):
     config_file: str | None = None
     start_time: dt.datetime
@@ -93,19 +96,19 @@ class Experiment:
         config_file: str,
         base_dir: str = "results",
         create_directories: bool = True,
+        name: str | None = None,
     ) -> Experiment:
+        if name is None:
+            name = generate_unique_token()
+
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
         return cls.from_config(
-            generate_unique_token(),
+            name,
             config,
             base_dir,
             create_directories=create_directories,
         )
-
-
-def generate_unique_token() -> str:
-    return generate_slug(3)
 
 
 def get_git_hash() -> str:
