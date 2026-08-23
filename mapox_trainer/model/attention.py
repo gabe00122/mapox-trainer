@@ -99,9 +99,9 @@ class AttentionBlock(nnx.Module):
 
         qkv = self.qkv_proj(inputs)
 
-        query = qkv[..., :self.num_heads]
-        key = qkv[..., self.num_heads:self.num_heads + self.num_kv_heads]
-        value = qkv[..., self.num_heads + self.num_kv_heads:]
+        query = qkv[:, :, :self.num_heads]
+        key = qkv[:, :, self.num_heads:self.num_heads + self.num_kv_heads]
+        value = qkv[:, :, self.num_heads + self.num_kv_heads:]
 
         if self.use_qk_norm:
             query = self._query_norm(query)
