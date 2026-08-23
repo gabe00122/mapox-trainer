@@ -55,7 +55,10 @@ class AttentionBlock(nnx.Module):
         self.qkv_proj = nnx.LinearGeneral(
             in_features=self.d_model,
             out_features=(self.num_heads + 2 * self.num_kv_heads, self.head_dim),
-            param_dtype=param_dtype,
+            use_bias=False,
+            dtype=self.dtype,
+            param_dtype=self.param_dtype,
+            kernel_init=kernel_init,
             rngs=rngs,
         )
 
