@@ -13,6 +13,8 @@ class GridCnnObsEncoderConfig(BaseModel):
     kernels: tuple[tuple[int, int], ...]
     strides: tuple[tuple[int, int], ...]
     channels: tuple[int, ...]
+    embedding_dim: int = 16
+    learned_embeddings: bool = False
 
 
 class FlattenedObsEncoderConfig(BaseModel):
@@ -41,8 +43,6 @@ class AttentionConfig(BaseModel):
 class RnnConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     type: Literal["rnn"] = "rnn"
-
-    # carry_dim: int
 
 
 class FeedForwardConfig(BaseModel):

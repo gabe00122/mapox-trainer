@@ -32,11 +32,10 @@ def create_optimizer(
                 adam_b2=optimizer_config.beta2,
                 muon_weight_dimension_numbers=muon_dim_numbers_fn,
             )
-        case _:
-            raise ValueError(f"Unknown optimizer type: {optimizer_config.type}")
 
 
 EXCLUDE_TOP = {
+    "embedding",
     "value_head",
     "action_encoder",
     "reward_encoder",

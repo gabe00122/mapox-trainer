@@ -1,4 +1,6 @@
+from flax.nnx.nn.linear import default_embed_init
 import jax
+from jax import numpy as jnp
 from einops import rearrange
 from flax import nnx
 from mapox import ObservationSpec
@@ -48,8 +50,7 @@ class GridCnnObsEncoder(nnx.Module):
             "max_value must be specified in the observation spec"
         )
 
-        embed_d = 16
-
+        self._config = config
         self.dtype = dtype
         self.params_dtype = params_dtype
 
@@ -60,12 +61,11 @@ class GridCnnObsEncoder(nnx.Module):
             else sum(obs_spec.max_value)
         )
 
-        self.embedding = nnx.Embed(self.num_classes, embed_d, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
-        # self.proj = nnx.Linear(embed_d, embed_d, dtype=dtype, param_dtype=params_dtype, rngs=rngs)
-
+        embeddings = default_embed_init(rngs.params(), (self.num_classes, config.embedding_dim), params_dtype)
+        self.embedding = nnx.Param(embeddings) if config.learned_embeddings else nnx.Variable(embeddings)
         channels = [*config.channels, output_size]
 
-        in_channel = embed_d #self.num_classes
+        in_channel = config.embedding_dim
         layers = []
         for kernel_size, strides, channel in zip(
             config.kernels, config.strides, channels
@@ -87,9 +87,9 @@ class GridCnnObsEncoder(nnx.Module):
         self.layers = nnx.List(layers)
 
     def __call__(self, x: jax.Array) -> jax.Array:
-        x = jax.lax.stop_gradient(self.embedding(x[..., 0]))
-        # x = self.proj(x)
-        # x = jax.nn.one_hot(x.squeeze(-1), self.num_classes, dtype=self.dtype)  # currently only supports the case with multiple components per tile
+        # only supports one channel for now
+        assert x.shape[-1] == 1
+        x = jnp.take(self.embedding[:], x[..., 0], axis=0)
 
         for i, layer in enumerate(self.layers):
             x = layer(x)
