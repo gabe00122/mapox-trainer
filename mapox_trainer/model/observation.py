@@ -1,5 +1,6 @@
 from flax.nnx.nn.linear import default_embed_init
 import jax
+from jax import numpy as jnp
 from einops import rearrange
 from flax import nnx
 from mapox import ObservationSpec
@@ -88,7 +89,7 @@ class GridCnnObsEncoder(nnx.Module):
     def __call__(self, x: jax.Array) -> jax.Array:
         # only supports one channel for now
         assert x.shape[-1] == 1
-        x = self.embedding(x[..., 0])
+        x = jnp.take(self.embedding[:], x[..., 0], axis=0)
 
         for i, layer in enumerate(self.layers):
             x = layer(x)
