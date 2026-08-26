@@ -84,18 +84,12 @@ def play_from_run(
 ):
     experiment = Experiment.load(name, "results")
     config = experiment.config
-    rngs = nnx.Rngs(seed)
+    rngs = nnx.Rngs(default=experiment.default_seed)
 
-    env_factory = create_env_factory()
-    env, task_count = env_factory.create_env(
-        config.environment, config.max_env_steps, 1, env_name
-    )
+    env, task_count = create_env_factory().create_env(config.environment, config.max_env_steps, 1, env_name)
 
     agent = MapoxAgent(experiment, env, config.max_env_steps, task_count, rngs)
-
-    rust_enjoy(
-        cast(RustEnv, env), size, 0, agent
-    )
+    rust_enjoy(cast(RustEnv, env), experiment.config.max_env_steps, seed, agent)
     # enjoy(
     #     env,
     #     agent,

@@ -19,7 +19,7 @@ from mapox_trainer.logger import JaxLogger
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.optimizer import create_optimizer
 from mapox_trainer.rollout import Rollout, RolloutState
-from mapox_trainer.util import add_seq_dim, count_parameters, format_count, lerp
+from mapox_trainer.util import add_seq_dim, count_parameters, format_count
 
 
 def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
@@ -37,7 +37,6 @@ def create_training_logs() -> dict[str, jax.Array]:
         "actor_loss": jnp.array(0.0),
         "entropy_loss": jnp.array(0.0),
         "total_loss": jnp.array(0.0),
-        "entropy_coef": jnp.array(0.0),
         "value": jnp.array(0.0),
         "value_min": jnp.array(0.0),
         "value_max": jnp.array(0.0),
@@ -164,17 +163,15 @@ def ppo_loss(
 
     pg_loss1 = ratio * batch_advantage
     pg_loss2 = (
-        jnp.clip(ratio, 1.0 - hypers.vf_clip, 1.0 + hypers.vf_clip) * batch_advantage
+        jnp.clip(ratio, 1.0 - hypers.pg_clip, 1.0 + hypers.pg_clip) * batch_advantage
     )
 
     actor_loss = -jnp.minimum(pg_loss1, pg_loss2).mean()
 
     entropy_loss = -policy.entropy().mean()
 
-    entropy_coef_value = lerp(hypers.entropy_coef, hypers.entropy_coef_end, progress)
-
     total_loss = (
-        hypers.vf_coef * value_loss + actor_loss + entropy_coef_value * entropy_loss
+        hypers.vf_coef * value_loss + actor_loss + hypers.entropy_coef * entropy_loss
     )
 
     logs = {
@@ -183,7 +180,6 @@ def ppo_loss(
         "actor_loss": actor_loss,
         "entropy_loss": entropy_loss,
         "total_loss": total_loss,
-        "entropy_coef": entropy_coef_value,
         "value": jnp.mean(value),
         "value_min": jnp.min(value),
         "value_max": jnp.max(value),
