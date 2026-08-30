@@ -40,7 +40,7 @@ include = ["mapox_trainer*"]
 exclude = ["config*", "videos*"]
 
 [tool.uv.sources]
-mapox = { path = "../mapox-rs" }
+mapox = { path = "../mapox" }
 
 [dependency-groups]
 dev = [

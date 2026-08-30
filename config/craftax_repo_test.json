@@ -53,7 +53,7 @@
       "minibatch_count": 8,
       "vf_coef": 0.5,
       "entropy_coef": 0.004,
-      "vf_clip": 0.2,
+      "pg_clip": 0.2,
       "discount": 0.99,
       "gae_lambda": 0.9,
       "normalize_advantage": true

@@ -2,11 +2,11 @@
   "seed": 42,
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 1150,
+  "update_steps": 30,
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.003,
+      "learning_rate": 0.001,
       "weight_decay": 0.00010718901435954378,
       "eps": 1e-08,
       "beta1": 0.9353521064414686,
@@ -22,24 +22,11 @@
       },
       "hidden_features": 128,
       "layer": {
-        "feed_forward": {
-          "glu": true,
-          "size": 768
-        },
-        "history": {
-          "type": "attention",
-          "num_heads": 4,
-          "num_kv_heads": 1,
-          "head_dim": 32,
-          "sliding_window": null,
-          "rope_max_wavelength": 10000.0,
-          "use_qk_norm": false
-        },
-        "use_post_attn_norm": false,
-        "use_post_ffw_norm": false
+        "feed_forward": { "glu": false, "size": 256 },
+        "history": null
       },
-      "num_layers": 8,
-      "value_hidden_dim": 768,
+      "num_layers": 2,
+      "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
         "min": -10.0,
@@ -60,7 +47,7 @@
       "vf_coef": 0.5392535826611433,
       "entropy_coef": 0.001,
       "pg_clip": 0.2827893540340816,
-      "discount": 0.99,
+      "discount": 0.9660902557298033,
       "gae_lambda": 0.9123716252262187,
       "normalize_advantage": true
     }
@@ -75,7 +62,7 @@
     "view_height": 11
   },
   "logger": {
-    "use_console": false,
+    "use_console": true,
     "use_wandb": false,
     "use_jsonl": true
   }

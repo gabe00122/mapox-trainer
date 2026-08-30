@@ -155,7 +155,7 @@ class Config(BaseModel):
 
     updates_per_jit: int = 1
     update_steps: int
-    num_checkpoints: int = 50
+    num_checkpoints: int = 5
 
     learner: LearnerConfig
     environment: EnvironmentConfig | MultiTaskConfig | CraftaxConfig = Field(

@@ -3,12 +3,12 @@
   "num_envs": 512,
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 2000,
+  "update_steps": 5000,
   "num_checkpoints": 50,
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.00108986115210741,
+      "learning_rate": 0.000108986115210741,
       "weight_decay": 6.44516289841076e-6,
       "eps": 1e-8,
       "beta1": 0.9,
@@ -73,8 +73,8 @@
       "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
-        "min": -5.0,
-        "max": 15.0,
+        "min": -2.0,
+        "max": 25.0,
         "n_logits": 51,
         "sigma": 0.3
       },
@@ -88,13 +88,13 @@
       "trainer_type": "ppo",
       "epoch_count": 1,
       "minibatch_count": 32,
-      "vf_coef": 3.961649728218663,
-      "entropy_coef": 0.01,
+      "vf_coef": 4,
+      "entropy_coef": 0.001,
       "entropy_coef_end": 0.0,
-      "vf_clip": 0.2,
-      "discount": 0.999,
+      "pg_clip": 0.2,
+      "discount": 1.0,
       "gae_lambda": 0.90,
-      "normalize_advantage": false
+      "normalize_advantage": true
     }
   },
   "environment": {
