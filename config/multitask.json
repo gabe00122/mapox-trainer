@@ -67,7 +67,7 @@
       "minibatch_count": 32,
       "vf_coef": 0.5392535826611433,
       "entropy_coef": 0.001,
-      "vf_clip": 0.2827893540340816,
+      "pg_clip": 0.2827893540340816,
       "discount": 0.99,
       "gae_lambda": 0.91,
       "normalize_advantage": true
@@ -78,7 +78,7 @@
     "envs": [
       {
         "name": "koth",
-        "num": 128,
+        "num": 32,
         "env": {
           "env_type": "king_hill",
           "num_agents": 8,
@@ -90,7 +90,7 @@
       },
       {
         "name": "stealth",
-        "num": 32,
+        "num": 8,
         "env": {
           "env_type": "prey",
           "width": 80,
@@ -103,7 +103,7 @@
       },
       {
         "name": "scouts",
-        "num": 512,
+        "num": 128,
         "env": {
           "env_type": "scouts",
           "width": 40,
@@ -114,7 +114,7 @@
       },
       {
         "name": "digging",
-        "num": 128,
+        "num": 32,
         "env": {
           "env_type": "find_return",
           "num_agents": 8,

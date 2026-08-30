@@ -1,13 +1,15 @@
+from flax.nnx.nn.linear import default_embed_init
 import jax
-from flax import nnx
+from jax import numpy as jnp
 from einops import rearrange
+from flax import nnx
+from mapox import ObservationSpec
 
 from mapox_trainer.config import (
     FlattenedObsEncoderConfig,
     GridCnnObsEncoderConfig,
     LinearObsEncoderConfig,
 )
-from mapox import concat_one_hot, ObservationSpec
 
 
 class LinearObsEncoder(nnx.Module):
@@ -48,6 +50,7 @@ class GridCnnObsEncoder(nnx.Module):
             "max_value must be specified in the observation spec"
         )
 
+        self._config = config
         self.dtype = dtype
         self.params_dtype = params_dtype
 
@@ -58,9 +61,11 @@ class GridCnnObsEncoder(nnx.Module):
             else sum(obs_spec.max_value)
         )
 
+        embeddings = default_embed_init(rngs.params(), (self.num_classes, config.embedding_dim), params_dtype)
+        self.embedding = nnx.Param(embeddings) if config.learned_embeddings else nnx.Variable(embeddings)
         channels = [*config.channels, output_size]
 
-        in_channel = self.num_classes
+        in_channel = config.embedding_dim
         layers = []
         for kernel_size, strides, channel in zip(
             config.kernels, config.strides, channels
@@ -81,10 +86,10 @@ class GridCnnObsEncoder(nnx.Module):
 
         self.layers = nnx.List(layers)
 
-    def __call__(self, x) -> jax.Array:
-        x = concat_one_hot(
-            x, self._one_hot_sizes, self.dtype
-        )  # currently only supports the case with multiple components per tile
+    def __call__(self, x: jax.Array) -> jax.Array:
+        # only supports one channel for now
+        assert x.shape[-1] == 1
+        x = jnp.take(self.embedding[:], x[..., 0], axis=0)
 
         for i, layer in enumerate(self.layers):
             x = layer(x)

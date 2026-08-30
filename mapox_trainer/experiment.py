@@ -1,15 +1,16 @@
 import datetime as dt
 import random
-import string
 import subprocess
 
 import fsspec
-from pathlib import Path
 from coolname import generate_slug
 from pydantic import BaseModel
 
 from mapox_trainer.config import Config, load_config
 
+
+def generate_unique_token() -> str:
+    return generate_slug(3)
 
 class ExperimentMeta(BaseModel):
     config_file: str | None = None
@@ -59,7 +60,7 @@ class Experiment:
             f.write(self.meta.model_dump_json(indent=2))
 
     @classmethod
-    def load(cls, unique_token: str, base_dir: str = "results") -> "Experiment":
+    def load(cls, unique_token: str, base_dir: str = "results") -> Experiment:
         experiment_url = f"{base_dir.rstrip('/')}/{unique_token}"
         fs, root = fsspec.core.url_to_fs(experiment_url)
 
@@ -78,9 +79,9 @@ class Experiment:
         config: Config,
         base_dir: str = "results",
         create_directories: bool = True,
-    ) -> "Experiment":
+    ) -> Experiment:
         meta = ExperimentMeta(
-            start_time=dt.datetime.now(tz=dt.timezone.utc),
+            start_time=dt.datetime.now(tz=dt.UTC),
             git_hash=get_git_hash(),
         )
         exp = cls(unique_token, config, meta, base_dir)
@@ -95,19 +96,19 @@ class Experiment:
         config_file: str,
         base_dir: str = "results",
         create_directories: bool = True,
-    ) -> "Experiment":
+        name: str | None = None,
+    ) -> Experiment:
+        if name is None:
+            name = generate_unique_token()
+
         with fsspec.open(config_file, "r") as f:
             config = load_config(f.read())
         return cls.from_config(
-            generate_unique_token(),
+            name,
             config,
             base_dir,
             create_directories=create_directories,
         )
-
-
-def generate_unique_token() -> str:
-    return generate_slug(3)
 
 
 def get_git_hash() -> str:

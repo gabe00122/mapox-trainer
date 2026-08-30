@@ -1,14 +1,12 @@
 from functools import cached_property
-from typing import Any, NamedTuple, Literal
+from typing import Any, Literal, NamedTuple
 
 import jax
 from jax import numpy as jnp
-from pydantic import BaseModel, ConfigDict
-
 from mapox import Environment, TimeStep
-from mapox.specs import DiscreteActionSpec, ObservationSpec
 from mapox.renderer import GridRenderSettings, GridRenderState
-
+from mapox.specs import DiscreteActionSpec, ObservationSpec
+from pydantic import BaseModel, ConfigDict
 
 PREPROCESS_SHAPE = (65, 55, 1)
 
@@ -26,7 +24,7 @@ def rgb2gray(rgb):
 
 
 class CraftaxEnvironment(Environment[CraftaxWrapperState]):
-    def __init__(self, config: "CraftaxConfig", length: int) -> None:
+    def __init__(self, config: CraftaxConfig, length: int) -> None:
         super().__init__()
 
         # craftax is an optional dependency (`uv sync --extra craftax`)

@@ -30,6 +30,8 @@ class AttentionBlock(nnx.Module):
         kernel_init: nnx.Initializer = nnx.initializers.normal(),
         rngs: nnx.Rngs,
     ):
+        super().__init__()
+
         self.d_model = d_model
         self.head_dim = head_dim
         self.num_heads = num_heads
@@ -50,29 +52,9 @@ class AttentionBlock(nnx.Module):
                 f"'num_heads' heads ({self.num_heads})."
             )
 
-        self.key_proj = nnx.LinearGeneral(
+        self.qkv_proj = nnx.LinearGeneral(
             in_features=self.d_model,
-            out_features=(self.num_kv_heads, self.head_dim),
-            use_bias=False,
-            dtype=self.dtype,
-            param_dtype=self.param_dtype,
-            kernel_init=kernel_init,
-            rngs=rngs,
-        )
-
-        self.value_proj = nnx.LinearGeneral(
-            in_features=self.d_model,
-            out_features=(self.num_kv_heads, self.head_dim),
-            use_bias=False,
-            dtype=self.dtype,
-            param_dtype=self.param_dtype,
-            kernel_init=kernel_init,
-            rngs=rngs,
-        )
-
-        self.query_proj = nnx.LinearGeneral(
-            in_features=self.d_model,
-            out_features=(self.num_heads, self.head_dim),
+            out_features=(self.num_heads + 2 * self.num_kv_heads, self.head_dim),
             use_bias=False,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -118,9 +100,11 @@ class AttentionBlock(nnx.Module):
     ) -> tuple[jax.Array, KVCache | None]:
         batch, seq, _ = inputs.shape
 
-        key = self.key_proj(inputs)
-        value = self.value_proj(inputs)
-        query = self.query_proj(inputs)
+        qkv = self.qkv_proj(inputs)
+
+        query = qkv[:, :, :self.num_heads]
+        key = qkv[:, :, self.num_heads:self.num_heads + self.num_kv_heads]
+        value = qkv[:, :, self.num_heads + self.num_kv_heads:]
 
         if self.use_qk_norm:
             query = self._query_norm(query)

@@ -52,6 +52,19 @@ hf download gabe00122/mapox-checkpoint --local-dir ./results
 
 This downloads `multitask`, a pretrained model that supports the following environments: `return`, `koth`, `prey`, and `scouts`.
 
+### Run the browser viewer
+
+The Mapox environments and multitask policy can be exported to WebAssembly
+with WHLO and run entirely in the browser:
+
+```bash
+JAX_PLATFORMS=cpu uv run python web/export.py --whlo /path/to/whlo
+python3 -m http.server 8123 -d web
+```
+
+Open <http://localhost:8123>. See [`web/README.md`](web/README.md) for controls
+and validation commands.
+
 ### Watch a trained agent
 To render an environment with a trained agent, use the enjoy command with the run name.
 

@@ -1,26 +1,34 @@
 {
-  "seed": 42,
+  "seed": "random",
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 1150,
+  "update_steps": 5000,
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.003,
-      "weight_decay": 0.00010718901435954378,
-      "eps": 1e-08,
-      "beta1": 0.9353521064414686,
-      "beta2": 0.9040155258546868,
+      "learning_rate": 0.00108986115210741,
+      "weight_decay": 6.44516289841076e-06,
+      "eps": 1e-8,
+      "beta1": 0.9,
+      "beta2": 0.98,
       "max_norm": 0.39644292421090327
     },
     "model": {
       "obs_encoder": {
         "obs_type": "grid_cnn",
-        "kernels": [[3, 3], [3, 3], [3, 3]],
-        "strides": [[2, 2], [1, 1], [1, 1]],
+        "kernels": [
+          [3, 3],
+          [3, 3],
+          [3, 3]
+        ],
+        "strides": [
+          [2, 2],
+          [1, 1],
+          [1, 1]
+        ],
         "channels": [16, 32]
       },
-      "hidden_features": 128,
+      "hidden_features": 256,
       "layer": {
         "feed_forward": {
           "glu": true,
@@ -38,14 +46,14 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
+      "num_layers": 16,
       "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
         "min": -10.0,
         "max": 10.0,
         "n_logits": 51,
-        "sigma": 0.10381270166884848
+        "sigma": 0.3
       },
       "activation": "gelu",
       "norm": "rms_norm",
@@ -56,16 +64,15 @@
     "trainer": {
       "trainer_type": "ppo",
       "epoch_count": 1,
-      "minibatch_count": 16,
-      "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.001,
-      "pg_clip": 0.2827893540340816,
-      "discount": 0.99,
-      "gae_lambda": 0.9123716252262187,
+      "minibatch_count": 32,
+      "vf_coef": 3.961649728218663,
+      "entropy_coef": 0.002901889285198761,
+      "pg_clip": 0.1,
+      "discount": 0.995,
+      "gae_lambda": 0.8041539043144189,
       "normalize_advantage": true
     }
   },
-  "num_envs": 512,
   "environment": {
     "env_type": "find_return",
     "num_agents": 8,
@@ -74,9 +81,10 @@
     "view_width": 11,
     "view_height": 11
   },
+  "num_envs": 512,
   "logger": {
-    "use_console": false,
-    "use_wandb": false,
+    "use_console": true,
+    "use_wandb": true,
     "use_jsonl": true
   }
 }

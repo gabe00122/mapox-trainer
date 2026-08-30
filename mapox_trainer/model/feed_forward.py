@@ -1,8 +1,8 @@
 import functools
-from typing import Callable
+from collections.abc import Callable
 
-from flax import nnx
 import jax
+from flax import nnx
 from jax.typing import DTypeLike
 
 

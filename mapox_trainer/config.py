@@ -1,9 +1,8 @@
-import json
 import random
-from typing import Any, Literal, Tuple
+from typing import Literal
 
 from mapox import EnvironmentConfig, MultiTaskConfig
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from mapox_trainer.envs import CraftaxConfig
 
@@ -14,6 +13,8 @@ class GridCnnObsEncoderConfig(BaseModel):
     kernels: tuple[tuple[int, int], ...]
     strides: tuple[tuple[int, int], ...]
     channels: tuple[int, ...]
+    embedding_dim: int = 16
+    learned_embeddings: bool = False
 
 
 class FlattenedObsEncoderConfig(BaseModel):
@@ -42,8 +43,6 @@ class AttentionConfig(BaseModel):
 class RnnConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     type: Literal["rnn"] = "rnn"
-
-    # carry_dim: int
 
 
 class FeedForwardConfig(BaseModel):
@@ -133,8 +132,7 @@ class PPOConfig(BaseModel):
     minibatch_count: int = 1
     vf_coef: float = 0.05
     entropy_coef: float = 0.005
-    entropy_coef_end: float | None = 0.0
-    vf_clip: float = 0.2
+    pg_clip: float = 0.2
     discount: float = 0.95
     gae_lambda: float = 0.95
     normalize_advantage: bool = False
@@ -157,7 +155,7 @@ class Config(BaseModel):
 
     updates_per_jit: int = 1
     update_steps: int
-    num_checkpoints: int = 50
+    num_checkpoints: int = 5
 
     learner: LearnerConfig
     environment: EnvironmentConfig | MultiTaskConfig | CraftaxConfig = Field(

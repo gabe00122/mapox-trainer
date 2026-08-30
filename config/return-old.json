@@ -1,14 +1,15 @@
 {
-  "seed": 42,
+  "seed": "random",
   "max_env_steps": 512,
   "updates_per_jit": 1,
-  "update_steps": 1150,
+  "update_steps": 500,
+  "num_envs": 512,
   "learner": {
     "optimizer": {
       "type": "muon",
       "learning_rate": 0.003,
       "weight_decay": 0.00010718901435954378,
-      "eps": 1e-08,
+      "eps": 1e-8,
       "beta1": 0.9353521064414686,
       "beta2": 0.9040155258546868,
       "max_norm": 0.39644292421090327
@@ -16,19 +17,19 @@
     "model": {
       "obs_encoder": {
         "obs_type": "grid_cnn",
-        "kernels": [[3, 3], [3, 3], [3, 3]],
-        "strides": [[2, 2], [1, 1], [1, 1]],
+        "kernels": [[3, 5], [3, 3], [3, 3]],
+        "strides": [[2, 2], [2, 2], [1, 1]],
         "channels": [16, 32]
       },
-      "hidden_features": 128,
+      "hidden_features": 256,
       "layer": {
         "feed_forward": {
-          "glu": true,
-          "size": 768
+          "size": 512,
+          "glu": true
         },
         "history": {
           "type": "attention",
-          "num_heads": 4,
+          "num_heads": 8,
           "num_kv_heads": 1,
           "head_dim": 32,
           "sliding_window": null,
@@ -38,14 +39,14 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 8,
-      "value_hidden_dim": 768,
+      "num_layers": 6,
+      "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
-        "min": -10.0,
-        "max": 10.0,
+        "min": -1.0,
+        "max": 19.0,
         "n_logits": 51,
-        "sigma": 0.10381270166884848
+        "sigma": 0.3
       },
       "activation": "gelu",
       "norm": "rms_norm",
@@ -56,27 +57,30 @@
     "trainer": {
       "trainer_type": "ppo",
       "epoch_count": 1,
-      "minibatch_count": 16,
+      "minibatch_count": 32,
       "vf_coef": 0.5392535826611433,
       "entropy_coef": 0.001,
       "pg_clip": 0.2827893540340816,
-      "discount": 0.99,
-      "gae_lambda": 0.9123716252262187,
+      "discount": 0.997,
+      "gae_lambda": 0.91,
       "normalize_advantage": true
     }
   },
-  "num_envs": 512,
   "environment": {
-    "env_type": "find_return",
+    "env_type": "rust_find_return",
     "num_agents": 8,
+    "num_flags": 1,
     "width": 40,
     "height": 40,
-    "view_width": 11,
-    "view_height": 11
+    "view_width": 15,
+    "view_height": 15,
+    "mapgen_threshold": 0.07,
+    "digging_timeout": 5,
+    "treasure_reward": 1.0
   },
   "logger": {
-    "use_console": false,
-    "use_wandb": false,
-    "use_jsonl": true
+    "use_console": true,
+    "use_tb": true
   }
 }
+

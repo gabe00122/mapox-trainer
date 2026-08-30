@@ -1,10 +1,10 @@
-from einops import rearrange
-from mapox import TimeStep
-import jax
-from flax import nnx
-
 from datetime import datetime
 from typing import Any
+
+import jax
+from einops import rearrange
+from flax import nnx
+from mapox import TimeStep
 
 
 def generate_unique_token() -> str:
@@ -104,7 +104,7 @@ def count_parameters(model: nnx.Module) -> str:
     return format_count(total_params)
 
 
-def format_count(n: int | float) -> str:
+def format_count(n: float) -> str:
     if not isinstance(n, (int, float)):
         raise TypeError("Input must be a number.")
 

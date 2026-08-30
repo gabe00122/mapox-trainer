@@ -7,9 +7,8 @@ import typer
 from mapox_trainer.eval import main as eval_main
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.play import play_from_run
-from mapox_trainer.train import train_run
 from mapox_trainer.runs import list_runs_command
-
+from mapox_trainer.train import train_run
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -48,7 +47,7 @@ def train_cmd(
 ):
     if distributed:
         jax.distributed.initialize()
-    experiment = Experiment.from_config_file(config, base_dir)
+    experiment = Experiment.from_config_file(config, base_dir, name=name)
 
     train_run(experiment)
 

@@ -1,28 +1,25 @@
-from dataclasses import dataclass
 import random
-from typing import Any, Optional
-import jax
-from jax import numpy as jnp
-from flax import nnx
-import pandas as pd
-
-import trueskill
-
+from dataclasses import dataclass
 from functools import partial
+from typing import Any
 
+import jax
+import pandas as pd
+import trueskill
 import typer
+from flax import nnx
+from jax import numpy as jnp
+from mapox import Environment, TimeStep
 from rich import progress
 from rich.console import Console
 
-from mapox import Environment, TimeStep
-
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
 from mapox_trainer.utils.ranking_plot import save_ranking_plot
-
 
 console = Console()
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -88,7 +85,7 @@ def _round(
         a1 = a1.sample(seed=rngs.action()).squeeze(-1)
         a2 = a2.sample(seed=rngs.action()).squeeze(-1)
 
-        actions = jnp.zeros((env.num_agents,), jnp.int32)
+        actions = jnp.zeros((env.num_agents,), index_type)
         actions = actions.at[policy1_idx].set(a1)
         actions = actions.at[policy2_idx].set(a2)
 
@@ -166,7 +163,7 @@ def load_policy(
 
 def evaluate(
     run_tokens: list[str],
-    env_name: Optional[str],
+    env_name: str | None,
     seed: int,
     rounds: int,
     output_name: str,
@@ -233,7 +230,7 @@ def main(
         help="Existing experiment run token (under results/)",
         rich_help_panel="Input",
     ),
-    env: Optional[str] = typer.Option(
+    env: str | None = typer.Option(
         None, help="Select a specific env when using a multi env config."
     ),
     seed: int = typer.Option(0, help="Random seed for RNGs."),
