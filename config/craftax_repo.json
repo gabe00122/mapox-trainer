@@ -1,6 +1,5 @@
 {
   "seed": 75264,
-  "num_envs": 128,
   "max_env_steps": 1024,
   "updates_per_jit": 1,
   "update_steps": 15000,
@@ -60,7 +59,11 @@
     }
   },
   "environment": {
-    "env_type": "craftax"
+    "env_type": "vec",
+    "num": 128,
+    "env": {
+      "env_type": "craftax"
+    }
   },
   "logger": {
     "use_console": true,

@@ -19,6 +19,7 @@ from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
+from mapox_trainer.util import num_tasks
 from mapox_trainer.utils.ranking_plot import save_ranking_plot
 
 console = Console()
@@ -143,7 +144,7 @@ def load_policy(
 
     if experiment.config.environment.env_type == "multi":
         for i, task in enumerate(experiment.config.environment.envs):
-            if task.name == env_name:
+            if task["name"] == env_name:
                 task_id = i
                 break
 
@@ -175,9 +176,10 @@ def evaluate(
 
     env_factory = create_env_factory()
 
-    env, task_count = env_factory.create_env(
-        experiment.config.environment, max_steps, vec_count=32, env_name=env_name
+    env = env_factory.create_env(
+        experiment.config.environment, max_steps, env_name=env_name
     )
+    task_count = num_tasks(experiment.config.environment)
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []

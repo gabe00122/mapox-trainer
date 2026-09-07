@@ -68,23 +68,25 @@
       "minibatch_count": 32,
       "vf_coef": 0.5392535826611433,
       "entropy_coef": 0.1,
-      "entropy_coef_end": 0.0,
       "pg_clip": 0.2827893540340816,
       "discount": 1.0,
       "gae_lambda": 0.91,
       "normalize_advantage": true
     }
   },
-  "num_envs": 2048,
   "environment": {
-    "env_type": "embodied_comm",
-    "view_width": 11,
-    "view_height": 11,
-    "full_info": true,
-    "color_probs": [
-      0.08581592, 0.09484126, 0.1048158, 0.11583937, 0.1280223, 0.14148653,
-      0.15636679, 0.17281203
-    ]
+    "env_type": "vec",
+    "num": 2048,
+    "env": {
+      "env_type": "embodied_comm",
+      "view_width": 11,
+      "view_height": 11,
+      "full_info": true,
+      "color_probs": [
+        0.08581592, 0.09484126, 0.1048158, 0.11583937, 0.1280223, 0.14148653,
+        0.15636679, 0.17281203
+      ]
+    }
   },
   "logger": {
     "use_console": true,

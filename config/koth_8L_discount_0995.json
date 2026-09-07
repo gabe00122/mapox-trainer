@@ -65,14 +65,17 @@
       "normalize_advantage": true
     }
   },
-  "num_envs": 512,
   "environment": {
-    "env_type": "king_hill",
-    "num_agents": 8,
-    "width": 40,
-    "height": 40,
-    "view_width": 11,
-    "view_height": 11
+    "env_type": "vec",
+    "num": 512,
+    "env": {
+      "env_type": "king_hill",
+      "num_agents": 8,
+      "width": 40,
+      "height": 40,
+      "view_width": 11,
+      "view_height": 11
+    }
   },
   "logger": {
     "use_console": false,

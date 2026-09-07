@@ -10,5 +10,5 @@ __all__ = ["CraftaxConfig", "create_env_factory"]
 
 def create_env_factory() -> EnvironmentFactory:
     factory = EnvironmentFactory()
-    factory.register_env("craftax", CraftaxEnvironment)
+    factory.register_env("craftax", CraftaxEnvironment, CraftaxConfig)
     return factory

@@ -296,9 +296,8 @@ def train_run(
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
     env_factory = create_env_factory()
-    env, task_count = env_factory.create_env(
-        experiment.config.environment, max_steps, experiment.config.num_envs
-    )
+    env = env_factory.create_env(experiment.config.environment, max_steps)
+    task_count = env.num_tasks
 
     batch_size = env.num_agents
 

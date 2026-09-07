@@ -1,10 +1,9 @@
 import random
 from typing import Literal
 
-from mapox import EnvironmentConfig, MultiTaskConfig
+from mapox import EnvironmentConfig
 from pydantic import BaseModel, ConfigDict, Field
 
-from mapox_trainer.envs import CraftaxConfig
 
 
 class GridCnnObsEncoderConfig(BaseModel):
@@ -150,7 +149,6 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     seed: int | Literal["random"] = "random"
-    num_envs: int = 1
     max_env_steps: int
 
     updates_per_jit: int = 1
@@ -158,9 +156,7 @@ class Config(BaseModel):
     num_checkpoints: int = 5
 
     learner: LearnerConfig
-    environment: EnvironmentConfig | MultiTaskConfig | CraftaxConfig = Field(
-        discriminator="env_type"
-    )
+    environment: EnvironmentConfig
     logger: LoggerConfig = LoggerConfig()
 
     snapshot_league: bool = False

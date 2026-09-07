@@ -75,6 +75,10 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
     def num_agents(self) -> int:
         return 1
 
+    @property
+    def num_tasks(self) -> int:
+        return 1
+
     def step(
         self, state, action: jax.Array, rng_key: jax.Array
     ) -> tuple[Any, TimeStep]:

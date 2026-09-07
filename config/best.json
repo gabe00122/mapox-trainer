@@ -3,7 +3,6 @@
   "max_env_steps": 512,
   "updates_per_jit": 1,
   "update_steps": 500,
-  "num_envs": 512,
   "learner": {
     "optimizer": {
       "type": "muon",
@@ -67,16 +66,20 @@
     }
   },
   "environment": {
-    "env_type": "rust_find_return",
-    "num_agents": 8,
-    "num_flags": 1,
-    "width": 40,
-    "height": 40,
-    "view_width": 15,
-    "view_height": 15,
-    "mapgen_threshold": 0.07,
-    "digging_timeout": 5,
-    "treasure_reward": 1.0
+    "env_type": "rust_vec",
+    "num": 512,
+    "env": {
+      "env_type": "rust_find_return",
+      "num_agents": 8,
+      "num_flags": 1,
+      "width": 40,
+      "height": 40,
+      "view_width": 15,
+      "view_height": 15,
+      "mapgen_threshold": 0.07,
+      "digging_timeout": 5,
+      "treasure_reward": 1.0
+    }
   },
   "logger": {
     "use_console": true,
