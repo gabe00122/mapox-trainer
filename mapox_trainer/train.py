@@ -30,6 +30,7 @@ def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
         0.0,
     )
 
+
 def create_training_logs() -> dict[str, jax.Array]:
     return {
         "rewards": jnp.array(0.0),
@@ -184,7 +185,7 @@ def ppo_loss(
         "value_min": jnp.min(value),
         "value_max": jnp.max(value),
         "approx_kl": (ratio - 1 - log_ratio).mean(),
-        "explained_variance": explained_variance(value, batch_target)
+        "explained_variance": explained_variance(value, batch_target),
     }
 
     return total_loss, logs
@@ -265,8 +266,9 @@ def train(
     )
 
     logs = jax.tree.map(
-        lambda x: x
-        / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count),
+        lambda x: (
+            x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count)
+        ),
         logs,
     )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)

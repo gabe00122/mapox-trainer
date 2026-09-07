@@ -76,4 +76,3 @@ class GLUBlock(nnx.Module):
         x = self.activation(x) * gate
         out = self.down_proj(x)
         return out
-

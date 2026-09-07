@@ -57,7 +57,9 @@ class TestCalculateAdvantage:
             next_terminated=terminated,
         )
 
-        result = rollout.calculate_advantage(state, discount=0.99, gae_lambda=0.95, norm_adv=False)
+        result = rollout.calculate_advantage(
+            state, discount=0.99, gae_lambda=0.95, norm_adv=False
+        )
 
         # Manual: target = r + γ((1-λ)V(1) + λ*V(1)) = r + γ*V(1) = 1.0 + 0.99*0.8
         expected_target = 1.0 + 0.99 * 0.8
@@ -82,7 +84,9 @@ class TestCalculateAdvantage:
             next_terminated=terminated,
         )
 
-        result = rollout.calculate_advantage(state, discount=0.99, gae_lambda=0.95, norm_adv=False)
+        result = rollout.calculate_advantage(
+            state, discount=0.99, gae_lambda=0.95, norm_adv=False
+        )
 
         # Step 2 (last): target = r2 + γ*((1-λ)*V3 + λ*V3) = 3 + 0.99*0.5
         # Step 1 (terminated): target = r1 + 0*(...) = 2.0 (discount is 0)
@@ -105,8 +109,12 @@ class TestCalculateAdvantage:
         values = jnp.array([[0.3, 0.7, 0.1, 0.9, 0.4, 0.6]])
         terminated = jnp.array([[False, False, False, False, False]])
 
-        state = state._replace(rewards=rewards, values=values, next_terminated=terminated)
-        result = rollout.calculate_advantage(state, discount=0.97, gae_lambda=0.9, norm_adv=False)
+        state = state._replace(
+            rewards=rewards, values=values, next_terminated=terminated
+        )
+        result = rollout.calculate_advantage(
+            state, discount=0.97, gae_lambda=0.9, norm_adv=False
+        )
 
         ref_adv, ref_targets = manual_gae(
             rewards[0].tolist(), values[0].tolist(), terminated[0].tolist(), 0.97, 0.9
@@ -125,13 +133,21 @@ class TestCalculateAdvantage:
         values = jnp.array([[0.5, 0.5, 0.5, 0.5], [1.0, 1.0, 1.0, 1.0]])
         terminated = jnp.zeros((2, 3), dtype=jnp.bool_)
 
-        state = state._replace(rewards=rewards, values=values, next_terminated=terminated)
-        result = rollout.calculate_advantage(state, discount=0.99, gae_lambda=0.95, norm_adv=False)
+        state = state._replace(
+            rewards=rewards, values=values, next_terminated=terminated
+        )
+        result = rollout.calculate_advantage(
+            state, discount=0.99, gae_lambda=0.95, norm_adv=False
+        )
 
         # Compare each batch element against its own reference
         for b in range(2):
             ref_adv, ref_targets = manual_gae(
-                rewards[b].tolist(), values[b].tolist(), terminated[b].tolist(), 0.99, 0.95
+                rewards[b].tolist(),
+                values[b].tolist(),
+                terminated[b].tolist(),
+                0.99,
+                0.95,
             )
             for t in range(3):
                 assert jnp.allclose(result.targets[b, t], ref_targets[t], atol=1e-4)
@@ -147,8 +163,12 @@ class TestCalculateAdvantage:
         values = jax.random.normal(k2, (4, 9))
         terminated = jnp.zeros((4, 8), dtype=jnp.bool_)
 
-        state = state._replace(rewards=rewards, values=values, next_terminated=terminated)
-        result = rollout.calculate_advantage(state, discount=0.99, gae_lambda=0.95, norm_adv=True)
+        state = state._replace(
+            rewards=rewards, values=values, next_terminated=terminated
+        )
+        result = rollout.calculate_advantage(
+            state, discount=0.99, gae_lambda=0.95, norm_adv=True
+        )
 
         assert jnp.allclose(result.advantages.mean(), 0.0, atol=1e-5)
         assert jnp.allclose(result.advantages.std(), 1.0, atol=0.1)
@@ -162,8 +182,12 @@ class TestCalculateAdvantage:
         values = jnp.array([[1.0, 2.0, 3.0, 4.0]])
         terminated = jnp.zeros((1, 3), dtype=jnp.bool_)
 
-        state = state._replace(rewards=rewards, values=values, next_terminated=terminated)
-        result = rollout.calculate_advantage(state, discount=0.0, gae_lambda=0.95, norm_adv=False)
+        state = state._replace(
+            rewards=rewards, values=values, next_terminated=terminated
+        )
+        result = rollout.calculate_advantage(
+            state, discount=0.0, gae_lambda=0.95, norm_adv=False
+        )
 
         # With discount=0, target_t = reward_t
         assert jnp.allclose(result.targets, rewards, atol=1e-5)

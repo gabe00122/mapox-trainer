@@ -128,7 +128,9 @@ class JsonLogger(BaseLogger):
 
 class WandbLogger(BaseLogger):
     def __init__(self, unique_token: str, settings: Config):
-        wandb.init(project="mapox_trainer", name=unique_token, config=dump_settings(settings))
+        wandb.init(
+            project="mapox_trainer", name=unique_token, config=dump_settings(settings)
+        )
 
     def log_dict(self, data: Metrics, step: int) -> None:
         normalized_data = json_normalize(data)

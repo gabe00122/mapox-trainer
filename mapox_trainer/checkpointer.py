@@ -1,9 +1,11 @@
+import flax
 from pathlib import Path
 
 import jax
 import orbax.checkpoint as ocp
 from flax import nnx
 from jax.sharding import Mesh
+from mapox_trainer.util import FixedParam
 
 
 class Checkpointer:
@@ -20,7 +22,7 @@ class Checkpointer:
         device = jax.devices()[0]
         mesh = Mesh((device,), ("batch",))
 
-        value_state = nnx.state(model, nnx.Param)
+        value_state = nnx.state(model, (nnx.Param, FixedParam))
         abstract_state = jax.tree.map(
             lambda x, s: jax.ShapeDtypeStruct(shape=x.shape, dtype=x.dtype, sharding=s),
             value_state,

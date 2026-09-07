@@ -29,10 +29,12 @@ def _act(
 
     return actions, agent_state, rng_key
 
+
 @jax.jit(static_argnums=(0, 2), donate_argnums=(1,))
 def _reset(model_def, model_params, num_agents: int) -> Any:
     model = nnx.merge(model_def, model_params)
     return model.initialize_carry(num_agents, None)
+
 
 class MapoxAgent(Agent):
     def __init__(
@@ -71,6 +73,7 @@ class MapoxAgent(Agent):
 
     def reset(self, num_agents: int, seed: int) -> None:
         self._agent_state = _reset(self._model_def, self._model_params, num_agents)
+
 
 def play_from_run(
     name: str,

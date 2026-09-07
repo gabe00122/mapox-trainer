@@ -23,15 +23,26 @@ class RunInfo(NamedTuple):
     log_lines: int
     final_reward: float | None
 
+
 COLOR_PALETTE = [
-    "green", "red", "cyan", "magenta", "yellow",
-    "blue", "bright_yellow", "bright_magenta", "bright_green", "bright_cyan",
+    "green",
+    "red",
+    "cyan",
+    "magenta",
+    "yellow",
+    "blue",
+    "bright_yellow",
+    "bright_magenta",
+    "bright_green",
+    "bright_cyan",
 ]
 
 
 def assign_env_colors(runs: list[RunInfo]) -> dict[str, str]:
     env_types = sorted({r.env_type for r in runs})
-    return {env: COLOR_PALETTE[i % len(COLOR_PALETTE)] for i, env in enumerate(env_types)}
+    return {
+        env: COLOR_PALETTE[i % len(COLOR_PALETTE)] for i, env in enumerate(env_types)
+    }
 
 
 def load_run(run_dir: Path) -> RunInfo | None:

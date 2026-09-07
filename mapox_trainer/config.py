@@ -5,7 +5,6 @@ from mapox import EnvironmentConfig
 from pydantic import BaseModel, ConfigDict, Field
 
 
-
 class GridCnnObsEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     obs_type: Literal["grid_cnn"] = "grid_cnn"

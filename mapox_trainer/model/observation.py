@@ -10,6 +10,7 @@ from mapox_trainer.config import (
     GridCnnObsEncoderConfig,
     LinearObsEncoderConfig,
 )
+from mapox_trainer.util import FixedParam
 
 
 class LinearObsEncoder(nnx.Module):
@@ -61,8 +62,14 @@ class GridCnnObsEncoder(nnx.Module):
             else sum(obs_spec.max_value)
         )
 
-        embeddings = default_embed_init(rngs.params(), (self.num_classes, config.embedding_dim), params_dtype)
-        self.embedding = nnx.Param(embeddings) if config.learned_embeddings else nnx.Variable(embeddings)
+        embeddings = default_embed_init(
+            rngs.params(), (self.num_classes, config.embedding_dim), params_dtype
+        )
+        self.embedding = (
+            nnx.Param(embeddings)
+            if config.learned_embeddings
+            else FixedParam(embeddings)
+        )
         channels = [*config.channels, output_size]
 
         in_channel = config.embedding_dim
