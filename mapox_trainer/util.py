@@ -130,6 +130,10 @@ def add_seq_dim(ts: TimeStep):
     return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
 
 
+class FixedParam(nnx.Variable):
+    pass
+
+
 def num_tasks(environment: Any) -> int:
     # A task selected out of a multi config only knows its own task
     # (env.num_tasks == 1), but the model's task embedding is sized for the
