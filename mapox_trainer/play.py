@@ -13,7 +13,7 @@ from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
-from mapox_trainer.util import add_seq_dim, num_tasks
+from mapox_trainer.util import add_seq_dim
 
 
 @jax.jit(static_argnums=(0,), donate_argnums=(2, 3))
@@ -90,11 +90,11 @@ def play_from_run(
     rngs = nnx.Rngs(default=experiment.default_seed)
 
     env = create_env_factory().create_env(
-        config.environment, config.max_env_steps, env_name
+        config.environment, config.max_env_steps
     )
-    task_count = num_tasks(config.environment)
+    env.set_enjoy_mode(2)
 
-    agent = MapoxAgent(experiment, env, config.max_env_steps, task_count, rngs)
+    agent = MapoxAgent(experiment, env, config.max_env_steps, env.num_tasks, rngs)
     rust_enjoy(cast(RustEnv, env), experiment.config.max_env_steps, seed, agent)
     # enjoy(
     #     env,

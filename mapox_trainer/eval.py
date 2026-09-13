@@ -19,7 +19,6 @@ from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.train import add_seq_dim
-from mapox_trainer.util import num_tasks
 from mapox_trainer.utils.ranking_plot import save_ranking_plot
 
 console = Console()
@@ -179,7 +178,6 @@ def evaluate(
     env = env_factory.create_env(
         experiment.config.environment, max_steps, env_name=env_name
     )
-    task_count = num_tasks(experiment.config.environment)
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []
@@ -188,7 +186,7 @@ def evaluate(
     for name in run_tokens:
         console.print(f"Loading: {name}")
         experiment = Experiment.load(name, base_dir="results")
-        policies = load_policy(experiment, env, env_name, max_steps, task_count, rngs)
+        policies = load_policy(experiment, env, env_name, max_steps, env.num_tasks, rngs)
         league.extend(policies)
 
     for _ in progress.track(

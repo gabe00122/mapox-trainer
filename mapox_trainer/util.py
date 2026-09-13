@@ -132,12 +132,3 @@ def add_seq_dim(ts: TimeStep):
 
 class FixedParam(nnx.Variable):
     pass
-
-
-def num_tasks(environment: Any) -> int:
-    # A task selected out of a multi config only knows its own task
-    # (env.num_tasks == 1), but the model's task embedding is sized for the
-    # whole multi set, so the count comes from the config
-    if environment.env_type == "multi":
-        return len(environment.envs)
-    return 1
