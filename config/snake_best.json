@@ -1,6 +1,6 @@
 {
   "seed": "random",
-  "max_env_steps": 512,
+  "max_env_steps": 1024,
   "updates_per_jit": 1,
   "update_steps": 500,
   "learner": {
@@ -16,7 +16,7 @@
     "model": {
       "obs_encoder": {
         "obs_type": "grid_cnn",
-        "kernels": [[3, 5], [3, 3], [3, 3]],
+        "kernels": [[3, 3], [3, 3], [3, 3]],
         "strides": [[2, 2], [2, 2], [1, 1]],
         "channels": [16, 32]
       },
@@ -43,7 +43,7 @@
       "value": {
         "type": "hl_gauss",
         "min": -1.0,
-        "max": 19.0,
+        "max": 30.0,
         "n_logits": 51,
         "sigma": 0.3
       },
@@ -66,21 +66,15 @@
     }
   },
   "environment": {
-    "env_type": "rust_vec",
-    "num": 512,
-    "env": {
-      "env_type": "rust_snake",
-      "num_agents": 8,
-      "width": 24,
-      "height": 24,
-      "view_width": 15,
-      "view_height": 15,
-      "initial_length": 3,
-      "initial_food": 8,
-      "food_spawn_prob": 0.15,
-      "food_reward": 1.0,
-      "death_reward": -1.0
-    }
+    "env_type": "rust_snake",
+    "num_agents": 4096,
+    "width": 500,
+    "height": 500,
+    "view_width": 15,
+    "view_height": 15,
+    "food_spawn_prob": 0.001,
+    "food_reward": 1.0,
+    "death_reward": 0.0
   },
   "logger": {
     "use_console": true,
