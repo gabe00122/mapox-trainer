@@ -39,9 +39,6 @@ where = ["."]
 include = ["mapox_trainer*"]
 exclude = ["config*", "videos*"]
 
-[tool.uv.sources]
-mapox = { path = "../mapox-rs" }
-
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

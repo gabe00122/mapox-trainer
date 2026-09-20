@@ -286,10 +286,7 @@ def block_all(xs):
     return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 
-def train_run(
-    experiment: Experiment,
-    profile: bool = False,
-):
+def train_run(experiment: Experiment):
     console = Console()
 
     max_steps = experiment.config.max_env_steps
@@ -351,7 +348,6 @@ def train_run(
             math.ceil(outer_updates / experiment.config.num_checkpoints),
         )
 
-    logs = None
     step = jnp.asarray(0, dtype=jnp.int32)
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
@@ -359,15 +355,8 @@ def train_run(
         optimizer, rngs, step, logs = jitted_train(
             optimizer, rngs, step, rollout, env, experiment.config
         )
-
-        if profile and i >= 4:
-            with jax.profiler.trace("/tmp/jax-trace"):
-                optimizer, rngs, step, logs = jitted_train(
-                    optimizer, rngs, step, rollout, env, experiment.config
-                )
-                block_all(nnx.state(optimizer))
-
-            break
+        rust_logs = env.consume_metrics()
+        logs["env"] = rust_logs
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs, i)

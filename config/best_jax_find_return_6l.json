@@ -71,8 +71,8 @@
       "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
-        "min": -1.0,
-        "max": 19.0,
+        "min": -2.0,
+        "max": 25.0,
         "n_logits": 51,
         "sigma": 0.3
       },

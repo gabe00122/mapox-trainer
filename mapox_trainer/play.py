@@ -92,7 +92,7 @@ def play_from_run(
     env = create_env_factory().create_env(
         config.environment, config.max_env_steps
     )
-    env.set_enjoy_mode(2)
+    env.set_enjoy_mode(0)
 
     agent = MapoxAgent(experiment, env, config.max_env_steps, env.num_tasks, rngs)
     rust_enjoy(cast(RustEnv, env), experiment.config.max_env_steps, seed, agent)
