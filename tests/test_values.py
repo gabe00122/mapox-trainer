@@ -16,7 +16,9 @@ from mapox_trainer.config import HlGaussConfig
 
 class TestCalculateSupports:
     def test_support_shape(self):
-        config = HlGaussConfig(type="hl_gauss", min=-1.0, max=1.0, n_logits=10, sigma=0.5)
+        config = HlGaussConfig(
+            type="hl_gauss", min=-1.0, max=1.0, n_logits=10, sigma=0.5
+        )
         support, centers = calculate_supports(config)
 
         # support has n_logits+1 bin edges, with leading batch dim
@@ -25,7 +27,9 @@ class TestCalculateSupports:
         assert centers.shape == (10,)
 
     def test_support_range(self):
-        config = HlGaussConfig(type="hl_gauss", min=-2.0, max=3.0, n_logits=20, sigma=0.5)
+        config = HlGaussConfig(
+            type="hl_gauss", min=-2.0, max=3.0, n_logits=20, sigma=0.5
+        )
         support, centers = calculate_supports(config)
 
         assert jnp.allclose(support[0, 0], -2.0)
@@ -43,7 +47,9 @@ class TestCalculateSupports:
 class TestHlGaussValue:
     @pytest.fixture
     def value_head(self):
-        config = HlGaussConfig(type="hl_gauss", min=-5.0, max=5.0, n_logits=51, sigma=0.75)
+        config = HlGaussConfig(
+            type="hl_gauss", min=-5.0, max=5.0, n_logits=51, sigma=0.75
+        )
         return HlGaussValue(32, config, rngs=nnx.Rngs(default=0))
 
     def test_get_value_is_weighted_sum(self, value_head):

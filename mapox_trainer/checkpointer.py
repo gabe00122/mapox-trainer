@@ -1,9 +1,11 @@
+import flax
 from pathlib import Path
 
 import jax
 import orbax.checkpoint as ocp
 from flax import nnx
 from jax.sharding import Mesh
+from mapox_trainer.util import FixedParam
 
 
 class Checkpointer:
@@ -11,16 +13,17 @@ class Checkpointer:
         if not directory.startswith("gs://"):
             directory = Path(directory).absolute().as_posix()
         self.mngr = ocp.CheckpointManager(directory)
+        self._filter = (nnx.Param, FixedParam)
 
     def save(self, model: object, global_step: int):
-        state = nnx.state(model, nnx.Param)
+        state = nnx.state(model, self._filter)
         self.mngr.save(global_step, args=ocp.args.StandardSave(state))
 
     def restore[T](self, model: T, step: int) -> T:
         device = jax.devices()[0]
         mesh = Mesh((device,), ("batch",))
 
-        value_state = nnx.state(model, nnx.Param)
+        value_state = nnx.state(model, self._filter)
         abstract_state = jax.tree.map(
             lambda x, s: jax.ShapeDtypeStruct(shape=x.shape, dtype=x.dtype, sharding=s),
             value_state,

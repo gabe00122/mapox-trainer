@@ -78,50 +78,62 @@
     "envs": [
       {
         "name": "koth",
-        "num": 32,
         "env": {
-          "env_type": "king_hill",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
+          "env_type": "vec",
+          "num": 32,
+          "env": {
+            "env_type": "king_hill",
+            "num_agents": 8,
+            "width": 40,
+            "height": 40,
+            "view_width": 11,
+            "view_height": 11
+          }
         }
       },
       {
         "name": "stealth",
-        "num": 8,
         "env": {
-          "env_type": "prey",
-          "width": 80,
-          "height": 80,
-          "num_sneakers": 24,
-          "num_chasers": 8,
-          "view_width": 11,
-          "view_height": 11
+          "env_type": "vec",
+          "num": 8,
+          "env": {
+            "env_type": "prey",
+            "width": 80,
+            "height": 80,
+            "num_sneakers": 24,
+            "num_chasers": 8,
+            "view_width": 11,
+            "view_height": 11
+          }
         }
       },
       {
         "name": "scouts",
-        "num": 128,
         "env": {
-          "env_type": "scouts",
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
+          "env_type": "vec",
+          "num": 128,
+          "env": {
+            "env_type": "scouts",
+            "width": 40,
+            "height": 40,
+            "view_width": 11,
+            "view_height": 11
+          }
         }
       },
       {
         "name": "digging",
-        "num": 32,
         "env": {
-          "env_type": "find_return",
-          "num_agents": 8,
-          "width": 40,
-          "height": 40,
-          "view_width": 11,
-          "view_height": 11
+          "env_type": "vec",
+          "num": 32,
+          "env": {
+            "env_type": "find_return",
+            "num_agents": 8,
+            "width": 40,
+            "height": 40,
+            "view_width": 11,
+            "view_height": 11
+          }
         }
       }
     ]

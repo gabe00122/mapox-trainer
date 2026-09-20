@@ -23,9 +23,7 @@ def create_optimizer(
             )
         case "muon":
             return optax.contrib.muon(
-                optax.linear_schedule(
-                    optimizer_config.learning_rate, 0, update_steps
-                ),
+                optax.linear_schedule(optimizer_config.learning_rate, 0, update_steps),
                 weight_decay=optimizer_config.weight_decay,
                 adam_weight_decay=optimizer_config.weight_decay,
                 adam_b1=optimizer_config.beta1,

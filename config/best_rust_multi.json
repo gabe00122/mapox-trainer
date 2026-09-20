@@ -3,12 +3,11 @@
   "max_env_steps": 512,
   "updates_per_jit": 1,
   "update_steps": 500,
-  "num_envs": 512,
   "learner": {
     "optimizer": {
       "type": "muon",
-      "learning_rate": 0.003,
-      "weight_decay": 0.00010718901435954378,
+      "learning_rate": 0.0010822848551700177,
+      "weight_decay": 0.01,
       "eps": 1e-8,
       "beta1": 0.9353521064414686,
       "beta2": 0.9040155258546868,
@@ -39,7 +38,7 @@
         "use_post_attn_norm": false,
         "use_post_ffw_norm": false
       },
-      "num_layers": 6,
+      "num_layers": 12,
       "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
@@ -58,29 +57,52 @@
       "trainer_type": "ppo",
       "epoch_count": 1,
       "minibatch_count": 32,
-      "vf_coef": 0.5392535826611433,
-      "entropy_coef": 0.001,
-      "pg_clip": 0.2827893540340816,
-      "discount": 0.997,
-      "gae_lambda": 0.91,
+      "vf_coef": 3.01,
+      "entropy_coef": 0.01,
+      "pg_clip": 0.207,
+      "discount": 0.996,
+      "gae_lambda": 0.84,
       "normalize_advantage": true
     }
   },
   "environment": {
-    "env_type": "rust_find_return",
-    "num_agents": 8,
-    "num_flags": 1,
-    "width": 40,
-    "height": 40,
-    "view_width": 15,
-    "view_height": 15,
-    "mapgen_threshold": 0.07,
-    "digging_timeout": 5,
-    "treasure_reward": 1.0
+    "env_type": "rust_multi",
+    "envs": [
+      {
+        "name": "find_return",
+        "num": 256,
+        "env": {
+          "env_type": "rust_find_return",
+          "num_agents": 8,
+          "num_flags": 1,
+          "width": 40,
+          "height": 40,
+          "view_width": 15,
+          "view_height": 15,
+          "mapgen_threshold": 0.07,
+          "digging_timeout": 5,
+          "treasure_reward": 1.0
+        }
+      },
+      {
+        "name": "snake",
+        "num": 2,
+        "env": {
+          "env_type": "rust_snake",
+          "num_agents": 1024,
+          "width": 500,
+          "height": 500,
+          "view_width": 15,
+          "view_height": 15,
+          "food_spawn_prob": 0.001,
+          "food_reward": 1.0,
+          "death_reward": 0.0
+        }
+      }
+    ]
   },
   "logger": {
     "use_console": true,
     "use_tb": true
   }
 }
-

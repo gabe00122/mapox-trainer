@@ -12,6 +12,7 @@ from mapox_trainer.config import Config, load_config
 def generate_unique_token() -> str:
     return generate_slug(3)
 
+
 class ExperimentMeta(BaseModel):
     config_file: str | None = None
     start_time: dt.datetime

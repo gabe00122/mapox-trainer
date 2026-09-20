@@ -143,7 +143,7 @@ def load_policy(
 
     if experiment.config.environment.env_type == "multi":
         for i, task in enumerate(experiment.config.environment.envs):
-            if task.name == env_name:
+            if task["name"] == env_name:
                 task_id = i
                 break
 
@@ -175,8 +175,8 @@ def evaluate(
 
     env_factory = create_env_factory()
 
-    env, task_count = env_factory.create_env(
-        experiment.config.environment, max_steps, vec_count=32, env_name=env_name
+    env = env_factory.create_env(
+        experiment.config.environment, max_steps, env_name=env_name
     )
     rngs = nnx.Rngs(default=seed)
 
@@ -186,7 +186,7 @@ def evaluate(
     for name in run_tokens:
         console.print(f"Loading: {name}")
         experiment = Experiment.load(name, base_dir="results")
-        policies = load_policy(experiment, env, env_name, max_steps, task_count, rngs)
+        policies = load_policy(experiment, env, env_name, max_steps, env.num_tasks, rngs)
         league.extend(policies)
 
     for _ in progress.track(

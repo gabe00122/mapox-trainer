@@ -110,7 +110,6 @@ Training is configured via JSON files. See `config/` for examples. The key secti
 | Field | Description |
 |---|---|
 | `seed` | Random seed, or `"random"` to generate one |
-| `num_envs` | Number of parallel environments (for single-environment configs) |
 | `max_env_steps` | Maximum steps per episode |
 | `update_steps` | Total number of PPO updates to run |
 | `num_checkpoints` | Number of model checkpoints to save during training (default: 50) |
@@ -146,7 +145,7 @@ Training is configured via JSON files. See `config/` for examples. The key secti
 
 **Environment** (`environment`)
 
-For a single environment, set `env_type` directly (e.g. `"find_return"`, `"king_hill"`, `"scouts"`). For multi-task training, set `env_type` to `"multi"` with an `envs` array — see `config/multitask.json` for an example.
+Set `env_type` directly for a single environment (e.g. `"find_return"`, `"king_hill"`, `"scouts"`). To run parallel copies, wrap the env config in a vector wrapper: `{"env_type": "vec", "num": 512, "env": {...}}` for JAX environments, `{"env_type": "rust_vec", "num": 512, "env": {...}}` for rust environments. For multi-task training, set `env_type` to `"multi"` with an `envs` array — see `config/multitask.json` for an example.
 
 ---
 

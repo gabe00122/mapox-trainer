@@ -128,3 +128,7 @@ def lerp(a: jax.Array, b: jax.Array, progress: jax.Array) -> jax.Array:
 
 def add_seq_dim(ts: TimeStep):
     return jax.tree.map(lambda x: rearrange(x, "b ... -> b 1 ..."), ts)
+
+
+class FixedParam(nnx.Variable):
+    pass

@@ -30,6 +30,7 @@ def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
         0.0,
     )
 
+
 def create_training_logs() -> dict[str, jax.Array]:
     return {
         "rewards": jnp.array(0.0),
@@ -184,7 +185,7 @@ def ppo_loss(
         "value_min": jnp.min(value),
         "value_max": jnp.max(value),
         "approx_kl": (ratio - 1 - log_ratio).mean(),
-        "explained_variance": explained_variance(value, batch_target)
+        "explained_variance": explained_variance(value, batch_target),
     }
 
     return total_loss, logs
@@ -265,8 +266,9 @@ def train(
     )
 
     logs = jax.tree.map(
-        lambda x: x
-        / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count),
+        lambda x: (
+            x / (config.updates_per_jit * hypers.epoch_count * hypers.minibatch_count)
+        ),
         logs,
     )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
@@ -284,10 +286,7 @@ def block_all(xs):
     return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 
-def train_run(
-    experiment: Experiment,
-    profile: bool = False,
-):
+def train_run(experiment: Experiment):
     console = Console()
 
     max_steps = experiment.config.max_env_steps
@@ -296,9 +295,8 @@ def train_run(
     checkpointer = Checkpointer(experiment.checkpoints_url)
 
     env_factory = create_env_factory()
-    env, task_count = env_factory.create_env(
-        experiment.config.environment, max_steps, experiment.config.num_envs
-    )
+    env = env_factory.create_env(experiment.config.environment, max_steps)
+    task_count = env.num_tasks
 
     batch_size = env.num_agents
 
@@ -350,7 +348,6 @@ def train_run(
             math.ceil(outer_updates / experiment.config.num_checkpoints),
         )
 
-    logs = None
     step = jnp.asarray(0, dtype=jnp.int32)
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
@@ -358,15 +355,8 @@ def train_run(
         optimizer, rngs, step, logs = jitted_train(
             optimizer, rngs, step, rollout, env, experiment.config
         )
-
-        if profile and i >= 4:
-            with jax.profiler.trace("/tmp/jax-trace"):
-                optimizer, rngs, step, logs = jitted_train(
-                    optimizer, rngs, step, rollout, env, experiment.config
-                )
-                block_all(nnx.state(optimizer))
-
-            break
+        rust_logs = env.consume_metrics()
+        logs["env"] = rust_logs
 
         # this should be delayed n-1 for jax to use async dispatch
         logger.log(logs, i)

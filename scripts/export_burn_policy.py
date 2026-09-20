@@ -34,7 +34,6 @@ import jax
 import numpy as np
 from flax import nnx
 from jax import numpy as jnp
-from mapox.envs.rust_env import RustEnv
 from mapox.specs import ObservationSpec
 from mapox.timestep import TimeStep
 from safetensors.numpy import save_file
@@ -50,8 +49,8 @@ from mapox_trainer.config import (
     TransformerActorCriticConfig,
 )
 from mapox_trainer.experiment import Experiment
+from mapox_trainer.envs import create_env_factory
 from mapox_trainer.model.network import TransformerActorCritic
-from mapox_trainer.util import add_seq_dim
 
 FORMAT = "mapox-burn-v1"
 
@@ -157,8 +156,10 @@ def export_run(args: argparse.Namespace) -> None:
     experiment = Experiment.load(args.name, args.base_dir)
     env_config = experiment.config.environment
 
-    env = RustEnv(env_config, num_envs=1)
     max_seq_length = experiment.config.max_env_steps
+    # the run's env config carries its own vectorization (rust_vec wrapper);
+    # the burn crate builds the same env from the embedded config JSON
+    env = create_env_factory().create_env(env_config, max_seq_length)
     model = TransformerActorCritic(
         as_float32(experiment.config.learner.model),
         env.observation_spec,
@@ -195,7 +196,7 @@ def export_run(args: argparse.Namespace) -> None:
         env.observation_spec,
         env.action_spec.n,
         max_seq_length,
-        env_config.model_dump_json(),
+        env.config_json,
         source=f"{experiment.unique_token}@{step}",
     )
     save_file(tensors, out, metadata=metadata)

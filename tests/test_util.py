@@ -6,8 +6,9 @@ scheduling, so getting it wrong means wrong exploration behavior.
 
 import jax.numpy as jnp
 import pytest
+from mapox import EnvironmentConfig
 
-from mapox_trainer.util import format_count, lerp
+from mapox_trainer.util import format_count, lerp, num_tasks
 
 
 class TestLerp:
@@ -52,3 +53,26 @@ class TestFormatCount:
     def test_rejects_non_numbers(self):
         with pytest.raises(TypeError):
             format_count("abc")
+
+
+class TestNumTasks:
+    """play/eval size the model's task embedding from the config alone; the
+    env reports one task once a multi env is specialized for enjoy. The count
+    is the number of env specs, not the sum of their `num` replicas."""
+
+    def test_single_env(self):
+        assert num_tasks(EnvironmentConfig(env_type="rust_find_return")) == 1
+
+    def test_multi_counts_env_specs(self):
+        config = EnvironmentConfig(
+            env_type="multi",
+            envs=[{"name": "find_return", "num": 2}, {"name": "snake", "num": 1}],
+        )
+        assert num_tasks(config) == 2
+
+    def test_rust_multi_counts_env_specs(self):
+        config = EnvironmentConfig(
+            env_type="rust_multi",
+            envs=[{"name": "find_return", "num": 256}, {"name": "snake", "num": 2}],
+        )
+        assert num_tasks(config) == 2
