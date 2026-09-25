@@ -1161,7 +1161,7 @@ wheels = [
 
 [[package]]
 name = "mapox"
-source = { directory = "../mapox-rs" }
+source = { directory = "../mapox" }
 dependencies = [
     { name = "einops" },
     { name = "jax" },
@@ -1234,7 +1234,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.11.1,<0.11.2" },
     { name = "jax", extras = ["cuda12"], marker = "extra == 'cuda'" },
     { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
-    { name = "mapox", directory = "../mapox-rs" },
+    { name = "mapox", directory = "../mapox" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "optax", specifier = ">=0.2.4" },
     { name = "orbax", specifier = ">=0.1.9" },

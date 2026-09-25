@@ -99,7 +99,7 @@
     "envs": [
       {
         "name": "find_return",
-        "num": 128,
+        "num": 256,
         "env": {
           "env_type": "rust_find_return"
         }
@@ -108,8 +108,7 @@
         "name": "scouts",
         "num": 1024,
         "env": {
-          "env_type": "rust_scouts",
-          "view_height": 17
+          "env_type": "rust_scouts"
         }
       }
     ]
