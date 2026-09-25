@@ -10,7 +10,10 @@ dependencies = [
     "einops>=0.8.1",
     "flax>=0.10.6",
     "fsspec[gcs]>=2025.5.1",
-    "jax>=0.6.0",
+    # jax 0.11.2 dropped the deprecated `hijax.HiPrimitive` alias that flax 0.12.9
+    # still imports; flax main fixed this but no release has it yet. Revisit after
+    # flax 0.12.10 / jax 0.11.3.
+    "jax>=0.11.1,<0.11.2",
     "mapox==0.2.0",
     "matplotlib>=3.10.5",
     "optax>=0.2.4",

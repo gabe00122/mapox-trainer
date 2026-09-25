@@ -101,10 +101,10 @@
       "env_type": "find_return",
       "num_agents": 8,
       "num_flags": 1,
-      "width": 40,
-      "height": 40,
+      "width": 80,
+      "height": 70,
       "view_width": 15,
-      "view_height": 17,
+      "view_height": 15,
       "mapgen_threshold": 0.07,
       "digging_timeout": 5,
       "treasure_reward": 1.0
