@@ -10,6 +10,7 @@ from mapox import ObservationSpec, TimeStep
 from mapox_trainer.config import (
     HlGaussConfig,
     LayerConfig,
+    RnnConfig,
     TransformerActorCriticConfig,
 )
 from mapox_trainer.model.attention import AttentionBlock, KVCache
@@ -85,11 +86,12 @@ class TransformerBlock(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
-        self.use_history = config.history is not None
+        history_config = config.history
+        self.use_history = history_config is not None
         self.use_post_attn_norm = config.use_post_attn_norm
         self.use_post_ffw_norm = config.use_post_ffw_norm
 
-        if self.use_history:
+        if history_config is not None:
             self.history_norm = normalizer(
                 num_features=hidden_features,
                 dtype=dtype,
@@ -97,19 +99,19 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-            if config.history.type == "rnn":
+            if isinstance(history_config, RnnConfig):
                 self.history = RnnBlock(
                     hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
                 )
             else:
                 self.history = AttentionBlock(
                     hidden_features,
-                    config.history.head_dim,
-                    config.history.num_heads,
-                    config.history.num_kv_heads,
+                    history_config.head_dim,
+                    history_config.num_heads,
+                    history_config.num_kv_heads,
                     max_seq_length=max_seq_length,
-                    rope_max_wavelength=config.history.rope_max_wavelength,
-                    use_qk_norm=config.history.use_qk_norm,
+                    rope_max_wavelength=history_config.rope_max_wavelength,
+                    use_qk_norm=history_config.use_qk_norm,
                     dtype=dtype,
                     param_dtype=param_dtype,
                     kernel_init=kernel_init,
@@ -192,7 +194,7 @@ class Embedder(nnx.Module):
         )
 
     def encode(self, x: jax.Array):
-        x = jnp.take(self.embedding_table, x, axis=0, fill_value=0)
+        x = jnp.take(self.embedding_table[...], x, axis=0, fill_value=0)
 
         x = jnp.asarray(x, dtype=self.dtype)
         x *= jnp.sqrt(self.embedding_features).astype(self.dtype)
@@ -295,19 +297,21 @@ class TransformerActorCritic(nnx.Module):
         else:
             self.value_head = MseHead(value_in_dim, rngs=rngs)
 
-    def initialize_carry(self, batch_size: int, rngs):
+    def initialize_carry(self, batch_size: int, rngs) -> tuple[KVCache | None, ...]:
         return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
 
     def __call__(
         self, ts: TimeStep, carry=None
-    ) -> tuple[ValueRepresentation, distrax.Distribution, tuple[KVCache, ...] | None]:
-        obs_embedding = self.obs_encoder(ts.obs)
-        reward_embedding = self.reward_encoder(ts.reward[..., None])
-        action_embedding = self.action_embedder.encode(ts.last_action)
+    ) -> tuple[
+        ValueRepresentation, distrax.Categorical, tuple[KVCache | None, ...] | None
+    ]:
+        obs_embedding = self.obs_encoder(jnp.asarray(ts.obs))
+        reward_embedding = self.reward_encoder(jnp.asarray(ts.reward)[..., None])
+        action_embedding = self.action_embedder.encode(jnp.asarray(ts.last_action))
 
         x = obs_embedding + reward_embedding + action_embedding
         if ts.task_ids is not None and self.task_embedder is not None:
-            x = x + self.task_embedder.encode(ts.task_ids)
+            x = x + self.task_embedder.encode(jnp.asarray(ts.task_ids))
 
         if carry is not None:
             out_carry = []

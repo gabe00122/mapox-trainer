@@ -6,6 +6,7 @@ from jax import numpy as jnp
 from mapox import Environment, TimeStep
 from mapox.renderer import GridRenderSettings, GridRenderState
 from mapox.specs import DiscreteActionSpec, ObservationSpec
+from mapox.vocab import Vocabulary
 from pydantic import BaseModel, ConfigDict
 
 PREPROCESS_SHAPE = (65, 55, 1)
@@ -28,7 +29,9 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
         super().__init__()
 
         # craftax is an optional dependency (`uv sync --extra craftax`)
-        from craftax.craftax_env import make_craftax_env_from_name
+        from craftax.craftax_env import (  # ty: ignore[unresolved-import]
+            make_craftax_env_from_name,
+        )
 
         self._symbolic = True
 
@@ -79,10 +82,18 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
     def num_tasks(self) -> int:
         return 1
 
+    @property
+    def obs_vocab(self) -> Vocabulary:
+        raise NotImplementedError("Craftax observations are image-like, not vocabs")
+
+    @property
+    def action_vocab(self) -> Vocabulary:
+        raise NotImplementedError("Craftax actions are integer ids, not vocabs")
+
     def step(
         self, state, action: jax.Array, rng_key: jax.Array
     ) -> tuple[Any, TimeStep]:
-        obs, cstate, reward, done, info = self._env.step(
+        obs, cstate, reward, done, _info = self._env.step(
             rng_key, state.cstate, action.squeeze(-1), self._env_params
         )
 
@@ -116,7 +127,8 @@ class CraftaxEnvironment(Environment[CraftaxWrapperState]):
             terminated=terminated[None],
             last_action=actions,
             reward=rewards,
-            action_mask=None,
+            # craftax has no per-agent action subset; every action is legal
+            action_mask=jnp.ones((1, self._n_actions), dtype=jnp.bool_),
         )
 
     def create_placeholder_logs(self):

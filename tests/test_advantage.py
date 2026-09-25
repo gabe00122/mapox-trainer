@@ -91,7 +91,7 @@ class TestCalculateAdvantage:
         # Step 2 (last): target = r2 + γ*((1-λ)*V3 + λ*V3) = 3 + 0.99*0.5
         # Step 1 (terminated): target = r1 + 0*(...) = 2.0 (discount is 0)
         # Step 0: target = r0 + γ*((1-λ)*V1 + λ*target1) = 1 + 0.99*(0.05*0.5 + 0.95*2.0)
-        ref_adv, ref_targets = manual_gae(
+        _ref_adv, ref_targets = manual_gae(
             rewards[0].tolist(), values[0].tolist(), terminated[0].tolist(), 0.99, 0.95
         )
 
@@ -142,7 +142,7 @@ class TestCalculateAdvantage:
 
         # Compare each batch element against its own reference
         for b in range(2):
-            ref_adv, ref_targets = manual_gae(
+            _ref_adv, ref_targets = manual_gae(
                 rewards[b].tolist(),
                 values[b].tolist(),
                 terminated[b].tolist(),

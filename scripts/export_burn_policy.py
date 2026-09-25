@@ -8,7 +8,7 @@ config and specs embedded as JSON strings in the safetensors metadata. A
 `policy.io.safetensors` with a few reference steps (inputs and the f32 model's
 log-probs/values) is written next to it so the rust side can verify the import:
 
-    cargo run -p mapox-burn --example verify -- policy.safetensors policy.io.safetensors
+    cargo run -p mapox-burn --example demo -- policy.safetensors
 
 `--fixtures <dir>` instead writes two tiny random-init models plus reference
 steps, used as committed test fixtures by `mapox-burn`'s parity tests. The
@@ -29,6 +29,7 @@ os.environ.setdefault("JAX_PLATFORMS", "cpu")
 import argparse
 import json
 from pathlib import Path
+from typing import TypedDict
 
 import jax
 import numpy as np
@@ -48,9 +49,10 @@ from mapox_trainer.config import (
     MseCriticConfig,
     TransformerActorCriticConfig,
 )
-from mapox_trainer.experiment import Experiment
 from mapox_trainer.envs import create_env_factory
+from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
+from mapox_trainer.util import add_seq_dim
 
 FORMAT = "mapox-burn-v1"
 
@@ -75,12 +77,13 @@ def make_metadata(
     env_config_json: str | None,
     source: str,
 ) -> dict[str, str]:
-    assert isinstance(obs_spec.max_value, tuple)
+    max_value = obs_spec.max_value
+    assert isinstance(max_value, tuple)
     metadata = {
         "format": FORMAT,
         "model_config": model_config.model_dump_json(),
         "obs_shape": json.dumps(list(obs_spec.shape)),
-        "obs_max_value": json.dumps(list(obs_spec.max_value)),
+        "obs_max_value": json.dumps(list(max_value)),
         "action_dim": str(action_dim),
         "max_seq_length": str(max_seq_length),
         "source": source,
@@ -101,11 +104,12 @@ def run_reference_steps(
     """Steps the model with its carry on synthetic inputs, recording what the
     rust implementation must reproduce: the policy's normalized log-probs and
     the scalar value, per step."""
-    assert isinstance(obs_spec.max_value, tuple)
+    max_value = obs_spec.max_value
+    assert isinstance(max_value, tuple)
     rng = np.random.default_rng(seed)
     carry = model.initialize_carry(num_agents, nnx.Rngs(0))
 
-    channel_max = np.asarray(obs_spec.max_value, np.uint16)
+    channel_max = np.asarray(max_value, np.uint16)
     inputs = {
         "obs": np.empty((steps, num_agents, *obs_spec.shape), np.uint16),
         "reward": np.empty((steps, num_agents), np.float32),
@@ -141,8 +145,8 @@ def run_reference_steps(
         inputs["action_mask"][t] = mask
         # distrax normalizes logits to log-probs, which is also the right
         # parity target: shift-invariant and independent of the mask fill
-        outputs["log_probs"][t] = np.asarray(policy.logits.squeeze(axis=1))
-        value = model.get_value(value_rep)
+        outputs["log_probs"][t] = np.asarray(policy.logits).squeeze(axis=1)
+        value = value_rep.value()
         outputs["value"][t] = np.asarray(value.reshape(num_agents))
 
     return inputs | outputs
@@ -196,7 +200,7 @@ def export_run(args: argparse.Namespace) -> None:
         env.observation_spec,
         env.action_spec.n,
         max_seq_length,
-        env.config_json,
+        env_config.model_dump_json(),
         source=f"{experiment.unique_token}@{step}",
     )
     save_file(tensors, out, metadata=metadata)
@@ -217,12 +221,18 @@ def export_run(args: argparse.Namespace) -> None:
     print(f"{io_out}: {args.io_steps} reference steps")
 
 
-FIXTURES = {
+class Fixture(TypedDict):
+    config: TransformerActorCriticConfig
+    max_seq_length: int
+    steps: int
+
+
+FIXTURES: dict[str, Fixture] = {
     # exercises: GQA attention with qk-norm, post-attn/ffw norms, GLU, gelu,
     # rms_norm, hl_gauss value with value_mlp, and (via steps > max_seq)
     # the kv-cache ring wraparound
-    "attn_glu_hlgauss": dict(
-        config=TransformerActorCriticConfig(
+    "attn_glu_hlgauss": {
+        "config": TransformerActorCriticConfig(
             obs_encoder=GridCnnObsEncoderConfig(
                 kernels=((3, 3), (3, 3), (3, 3)),
                 strides=((2, 2), (1, 1), (1, 1)),
@@ -245,13 +255,13 @@ FIXTURES = {
             dtype="float32",
             param_dtype="float32",
         ),
-        max_seq_length=16,
-        steps=24,
-    ),
+        "max_seq_length": 16,
+        "steps": 24,
+    },
     # the other branches: plain FF, no qk-norm, layer_norm, silu, mse value
     # with no value_mlp
-    "ff_mse": dict(
-        config=TransformerActorCriticConfig(
+    "ff_mse": {
+        "config": TransformerActorCriticConfig(
             obs_encoder=GridCnnObsEncoderConfig(
                 kernels=((3, 3), (3, 3), (3, 3)),
                 strides=((2, 2), (1, 1), (1, 1)),
@@ -272,9 +282,9 @@ FIXTURES = {
             dtype="float32",
             param_dtype="float32",
         ),
-        max_seq_length=16,
-        steps=24,
-    ),
+        "max_seq_length": 16,
+        "steps": 24,
+    },
 }
 
 

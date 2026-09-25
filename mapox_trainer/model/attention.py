@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -24,13 +24,16 @@ class AttentionBlock(nnx.Module):
         max_seq_length: int,
         rope_max_wavelength: float = 10_000,
         use_qk_norm: bool = False,
-        attention_impl: str | None = None,
+        attention_impl: Literal["xla", "cudnn"] | None = None,
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
-        kernel_init: nnx.Initializer = nnx.initializers.normal(),
+        kernel_init: nnx.Initializer | None = None,
         rngs: nnx.Rngs,
     ):
         super().__init__()
+
+        if kernel_init is None:
+            kernel_init = nnx.initializers.normal()
 
         self.d_model = d_model
         self.head_dim = head_dim
@@ -39,10 +42,11 @@ class AttentionBlock(nnx.Module):
         self.use_qk_norm = use_qk_norm
         self.max_seq_length = max_seq_length
         self.rope_max_wavelength = rope_max_wavelength
-        if attention_impl is None:
-            self.attention_impl = "cudnn" if jax.default_backend() == "gpu" else "xla"
-        else:
-            self.attention_impl = attention_impl
+        self.attention_impl: Literal["xla", "cudnn"] = (
+            attention_impl
+            if attention_impl is not None
+            else ("cudnn" if jax.default_backend() == "gpu" else "xla")
+        )
         self.dtype = dtype
         self.param_dtype = param_dtype
 

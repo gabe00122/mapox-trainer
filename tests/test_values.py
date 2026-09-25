@@ -1,17 +1,23 @@
 """Tests for value head implementations (HlGauss and MSE).
 
-HlGaussValue is particularly tricky — it discretizes continuous values into
-bins using a CDF, then trains with cross-entropy. Bugs here silently produce
-wrong value estimates that degrade training.
+HlGauss is particularly tricky — it discretizes continuous values into bins
+using a CDF, then trains with cross-entropy. Bugs here silently produce wrong
+value estimates that degrade training.
 """
 
 import jax
 import jax.numpy as jnp
 import pytest
 from flax import nnx
-from mapox_trainer.values import HlGaussValue, MseValue, calculate_supports
 
 from mapox_trainer.config import HlGaussConfig
+from mapox_trainer.model.value import (
+    HlGaussHead,
+    HlGaussValueRepresentation,
+    MseHead,
+    MseValueRepresentation,
+    calculate_supports,
+)
 
 
 class TestCalculateSupports:
@@ -23,7 +29,6 @@ class TestCalculateSupports:
 
         # support has n_logits+1 bin edges, with leading batch dim
         assert support.shape == (1, 11)
-        # centers has n_logits values
         assert centers.shape == (10,)
 
     def test_support_range(self):
@@ -34,6 +39,7 @@ class TestCalculateSupports:
 
         assert jnp.allclose(support[0, 0], -2.0)
         assert jnp.allclose(support[0, -1], 3.0)
+        assert len(centers) == config.n_logits
 
     def test_centers_are_midpoints(self):
         config = HlGaussConfig(type="hl_gauss", min=0.0, max=1.0, n_logits=4, sigma=0.5)
@@ -44,72 +50,69 @@ class TestCalculateSupports:
         assert jnp.allclose(centers, expected)
 
 
-class TestHlGaussValue:
-    @pytest.fixture
-    def value_head(self):
-        config = HlGaussConfig(
-            type="hl_gauss", min=-5.0, max=5.0, n_logits=51, sigma=0.75
-        )
-        return HlGaussValue(32, config, rngs=nnx.Rngs(default=0))
+@pytest.fixture
+def hl_gauss_config():
+    return HlGaussConfig(type="hl_gauss", min=-5.0, max=5.0, n_logits=51, sigma=0.75)
 
-    def test_get_value_is_weighted_sum(self, value_head):
-        """get_value should return the expected value under the softmax distribution."""
-        # Create logits that peak at a known center
+
+class TestHlGaussValueRepresentation:
+    def test_value_is_weighted_sum(self, hl_gauss_config):
+        """value() should return the expected value under the softmax distribution."""
+        # Uniform logits -> value should be the mean of centers (0.0 here)
         logits = jnp.zeros((2, 4, 51))
-        values = value_head.get_value(logits)
-        assert values.shape == (2, 4)
+        value = HlGaussValueRepresentation(hl_gauss_config, logits).value()
+        assert value.shape == (2, 4)
+        assert jnp.allclose(value, 0.0, atol=1e-3)
 
-        # Uniform logits → value should be the mean of centers (≈ 0.0 for symmetric range)
-        assert jnp.allclose(values, 0.0, atol=0.1)
-
-    def test_get_value_peaked_distribution(self, value_head):
-        """A very peaked logit distribution should give a value near the corresponding center."""
-        # Create logits with a strong peak at bin 40 (positive side)
+    def test_value_peaked_distribution(self, hl_gauss_config):
+        """A very peaked distribution should give a value near its center."""
+        # Strong peak on the right side of the range
         logits = jnp.full((1, 1, 51), -100.0)
         logits = logits.at[0, 0, 40].set(100.0)
 
-        value = value_head.get_value(logits)
-        # Bin 40 center should be around 5.0 * (40/51*2 - 1) ≈ 2.84
-        # The exact value depends on the bin centers
-        assert value[0, 0] > 0  # Should be positive (right side of distribution)
+        value = HlGaussValueRepresentation(hl_gauss_config, logits).value()
+        assert value[0, 0] > 0
+        assert jnp.allclose(value[0, 0], calculate_supports(hl_gauss_config)[1][40])
 
-    def test_loss_shape(self, value_head):
-        """Loss should be a scalar."""
+    def test_loss_shape(self, hl_gauss_config):
+        """Loss is per (batch, time) element, not reduced."""
         logits = jnp.zeros((2, 4, 51))
         targets = jnp.zeros((2, 4))
-        loss = value_head.get_loss(logits, targets)
-        assert loss.shape == ()
+        loss = HlGaussValueRepresentation(hl_gauss_config, logits).loss(targets)
+        assert loss.shape == (2, 4)
 
-    def test_loss_decreases_toward_target(self, value_head):
-        """Loss should be lower when logits match the target better."""
-        targets = jnp.array([[0.0, 0.0]])  # target at center
+    def test_loss_decreases_toward_target(self, hl_gauss_config):
+        """Loss should be lower when logits put mass on the target bin."""
+        targets = jnp.zeros((1, 2))  # target at the center bin (25)
 
-        # Logits peaked near 0 (center bin ≈ 25)
         good_logits = jnp.full((1, 2, 51), -10.0)
         good_logits = good_logits.at[:, :, 25].set(10.0)
 
-        # Logits peaked far from 0 (bin 0, far left)
         bad_logits = jnp.full((1, 2, 51), -10.0)
         bad_logits = bad_logits.at[:, :, 0].set(10.0)
 
-        good_loss = value_head.get_loss(good_logits, targets)
-        bad_loss = value_head.get_loss(bad_logits, targets)
-        assert good_loss < bad_loss
+        good_loss = HlGaussValueRepresentation(hl_gauss_config, good_logits).loss(
+            targets
+        )
+        bad_loss = HlGaussValueRepresentation(hl_gauss_config, bad_logits).loss(targets)
+        assert good_loss.mean() < bad_loss.mean()
 
-    def test_loss_clips_targets(self, value_head):
+    def test_loss_clips_targets(self, hl_gauss_config):
         """Targets outside [min, max] should be clipped, not produce NaN."""
         logits = jnp.zeros((1, 2, 51))
         targets = jnp.array([[100.0, -100.0]])  # Way outside range
 
-        loss = value_head.get_loss(logits, targets)
-        assert jnp.isfinite(loss)
+        loss = HlGaussValueRepresentation(hl_gauss_config, logits).loss(targets)
+        assert jnp.all(jnp.isfinite(loss))
 
-    def test_loss_is_differentiable(self, value_head):
+    def test_loss_is_differentiable(self, hl_gauss_config):
         """Should be able to take gradients of the loss w.r.t. logits."""
         targets = jnp.array([[1.0, -1.0]])
 
         def loss_fn(logits):
-            return value_head.get_loss(logits, targets)
+            return (
+                HlGaussValueRepresentation(hl_gauss_config, logits).loss(targets).mean()
+            )
 
         logits = jnp.zeros((1, 2, 51))
         grad = jax.grad(loss_fn)(logits)
@@ -117,23 +120,34 @@ class TestHlGaussValue:
         assert jnp.all(jnp.isfinite(grad))
 
 
-class TestMseValue:
-    @pytest.fixture
-    def value_head(self):
-        return MseValue(32, rngs=nnx.Rngs(default=0))
-
-    def test_get_value_is_identity(self, value_head):
+class TestMseValueRepresentation:
+    def test_value_is_identity(self):
         values = jnp.array([1.0, 2.0, 3.0])
-        assert jnp.allclose(value_head.get_value(values), values)
+        assert jnp.allclose(MseValueRepresentation(values).value(), values)
 
-    def test_loss_is_half_mse(self, value_head):
+    def test_loss_is_half_squared_error(self):
         values = jnp.array([[1.0, 2.0]])
         targets = jnp.array([[3.0, 4.0]])
-        loss = value_head.get_loss(values, targets)
-        expected = 0.5 * jnp.square(values - targets).mean()
-        assert jnp.allclose(loss, expected)
+        loss = MseValueRepresentation(values).loss(targets)
+        assert jnp.allclose(loss, 0.5 * jnp.square(values - targets))
 
-    def test_loss_zero_when_perfect(self, value_head):
+    def test_loss_zero_when_perfect(self):
         values = jnp.array([[1.5, -2.3]])
-        loss = value_head.get_loss(values, values)
+        loss = MseValueRepresentation(values).loss(values)
         assert jnp.allclose(loss, 0.0)
+
+
+class TestValueHeads:
+    def test_hl_gauss_head_output(self, hl_gauss_config):
+        head = HlGaussHead(32, hl_gauss_config, rngs=nnx.Rngs(default=0))
+        representation = head(jnp.ones((2, 4, 32)))
+
+        assert representation.value().shape == (2, 4)
+        assert representation.loss(jnp.zeros((2, 4))).shape == (2, 4)
+
+    def test_mse_head_output(self):
+        head = MseHead(32, rngs=nnx.Rngs(default=0))
+        representation = head(jnp.ones((2, 4, 32)))
+
+        assert representation.value().shape == (2, 4)
+        assert representation.loss(jnp.zeros((2, 4))).shape == (2, 4)

@@ -1,10 +1,13 @@
 import jax
+import numpy as np
 import pygame
-from craftax.craftax.constants import (
+from craftax.craftax.constants import (  # ty: ignore[unresolved-import]
     BLOCK_PIXEL_SIZE_HUMAN,
     Achievement,
 )
-from craftax.craftax.play_craftax import CraftaxRenderer
+from craftax.craftax.play_craftax import (  # ty: ignore[unresolved-import]
+    CraftaxRenderer,
+)
 from flax import nnx
 from jax import numpy as jnp
 from mapox.utils.video_writer import save_video
@@ -84,7 +87,9 @@ def main(name: str, base_dir: str = "results", seed: int = 121):
 
         renderer.render(env_state.cstate)
         renderer.update()
-        img_data = pygame.surfarray.array3d(pygame.display.get_surface())
+        surface = pygame.display.get_surface()
+        assert surface is not None, "craftax renderer needs a display surface"
+        img_data = pygame.surfarray.array3d(surface)
         frames.append(img_data)
 
         # clock.tick(5)
@@ -106,7 +111,7 @@ def main(name: str, base_dir: str = "results", seed: int = 121):
             if total_episodes >= 1:
                 break
 
-    save_video(frames, "videos/craftax.mp4", 8)
+    save_video(np.asarray(frames), "videos/craftax.mp4", 8)
 
 
 if __name__ == "__main__":

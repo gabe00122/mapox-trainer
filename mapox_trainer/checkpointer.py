@@ -1,10 +1,10 @@
-import flax
 from pathlib import Path
 
 import jax
 import orbax.checkpoint as ocp
 from flax import nnx
 from jax.sharding import Mesh
+
 from mapox_trainer.util import FixedParam
 
 

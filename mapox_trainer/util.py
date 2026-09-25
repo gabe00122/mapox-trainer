@@ -1,14 +1,16 @@
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, overload
 
 import jax
 from einops import rearrange
 from flax import nnx
+from jax import numpy as jnp
+from jax.typing import ArrayLike
 from mapox import TimeStep
 
 
 def generate_unique_token() -> str:
-    return datetime.now().strftime("%Y%m%d%H%M%S")
+    return datetime.now(tz=UTC).strftime("%Y%m%d%H%M%S")
 
 
 # Taken from pandas
@@ -79,10 +81,17 @@ def _normalise_json_ordered(data: dict[str, Any], separator: str) -> dict[str, A
     return {**top_dict_, **nested_dict_}
 
 
-def json_normalize[T: (dict[str, Any] | list[dict[str, Any]])](
-    ds: T,
-    sep: str = "/",
-) -> T:
+@overload
+def json_normalize(ds: dict[str, Any], sep: str = "/") -> dict[str, Any]: ...
+
+
+@overload
+def json_normalize(
+    ds: list[dict[str, Any]], sep: str = "/"
+) -> list[dict[str, Any]]: ...
+
+
+def json_normalize(ds: Any, sep: str = "/") -> Any:
     if isinstance(ds, tuple):
         ds = ds._asdict()
 
@@ -93,7 +102,7 @@ def json_normalize[T: (dict[str, Any] | list[dict[str, Any]])](
     elif isinstance(ds, list):
         normalised_json_list: list[dict[str, Any]] = [
             json_normalize(row, sep=sep) for row in ds
-        ]  # type: ignore
+        ]
         return normalised_json_list
     return normalised_json_object
 
@@ -122,7 +131,8 @@ def format_count(n: float) -> str:
         return f"{n / 1_000_000_000:.2f}B"
 
 
-def lerp(a: jax.Array, b: jax.Array, progress: jax.Array) -> jax.Array:
+def lerp(a: ArrayLike, b: ArrayLike, progress: ArrayLike) -> jax.Array:
+    a, b, progress = jnp.asarray(a), jnp.asarray(b), jnp.asarray(progress)
     return a + progress * (b - a)
 
 

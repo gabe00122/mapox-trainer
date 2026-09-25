@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
+from typing import Annotated, Any
 
 import jax
 import pandas as pd
@@ -44,8 +44,14 @@ def _round(
     max_steps: int,
     rngs: nnx.Rngs,
 ):
-    teams = env.teams
     team_size = env.num_agents // 2
+    teams = env.teams
+    if teams is None:
+        # Cooperative envs (including the rust ones) report no teams; split the
+        # agents in half so the two policies still get distinct rewards.
+        teams = jnp.concatenate(
+            [jnp.zeros(team_size, dtype=jnp.int8), jnp.ones(team_size, dtype=jnp.int8)]
+        )
 
     policy1_carry = policy1.initialize_carry(team_size, rngs)
     policy2_carry = policy2.initialize_carry(team_size, rngs)
@@ -82,8 +88,8 @@ def _round(
         _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
         _, a2, policy2_carry = policy2(policy2_ts, policy2_carry)
 
-        a1 = a1.sample(seed=rngs.action()).squeeze(-1)
-        a2 = a2.sample(seed=rngs.action()).squeeze(-1)
+        a1 = a1.sample(seed=rngs.action()).squeeze(-1).astype(index_type)
+        a2 = a2.sample(seed=rngs.action()).squeeze(-1).astype(index_type)
 
         actions = jnp.zeros((env.num_agents,), index_type)
         actions = actions.at[policy1_idx].set(a1)
@@ -124,8 +130,8 @@ def _round(
 
 def load_policy(
     experiment: Experiment,
-    env,
-    env_name,
+    env: Environment,
+    env_name: str | None,
     max_steps: int,
     task_count: int,
     rngs: nnx.Rngs,
@@ -140,12 +146,8 @@ def load_policy(
     )
 
     task_id = 0
-
-    if experiment.config.environment.env_type == "multi":
-        for i, task in enumerate(experiment.config.environment.envs):
-            if task["name"] == env_name:
-                task_id = i
-                break
+    if env_name is not None and env_name in env.task_names:
+        task_id = env.task_names.index(env_name)
 
     policies = []
 
@@ -175,9 +177,9 @@ def evaluate(
 
     env_factory = create_env_factory()
 
-    env = env_factory.create_env(
-        experiment.config.environment, max_steps, env_name=env_name
-    )
+    env = env_factory.create_env(experiment.config.environment, max_steps)
+    if env_name is not None and env_name in env.task_names:
+        env.set_enjoy_mode(env.task_names.index(env_name))
     rngs = nnx.Rngs(default=seed)
 
     league: list[PolicyRecord] = []
@@ -186,7 +188,9 @@ def evaluate(
     for name in run_tokens:
         console.print(f"Loading: {name}")
         experiment = Experiment.load(name, base_dir="results")
-        policies = load_policy(experiment, env, env_name, max_steps, env.num_tasks, rngs)
+        policies = load_policy(
+            experiment, env, env_name, max_steps, env.num_tasks, rngs
+        )
         league.extend(policies)
 
     for _ in progress.track(
@@ -225,17 +229,23 @@ def evaluate(
 
 @app.command()
 def main(
-    run: list[str] = typer.Option(
-        ...,
-        help="Existing experiment run token (under results/)",
-        rich_help_panel="Input",
-    ),
-    env: str | None = typer.Option(
-        None, help="Select a specific env when using a multi env config."
-    ),
-    seed: int = typer.Option(0, help="Random seed for RNGs."),
-    rounds: int = typer.Option(1000, help="Number of head-to-head rounds to run."),
-    out: str = typer.Option(help="The path and name of the results to save"),
+    run: Annotated[
+        list[str],
+        typer.Option(
+            ...,
+            help="Existing experiment run token (under results/)",
+            rich_help_panel="Input",
+        ),
+    ],
+    out: Annotated[str, typer.Option(help="The path and name of the results to save")],
+    env: Annotated[
+        str | None,
+        typer.Option(help="Select a specific env when using a multi env config."),
+    ] = None,
+    seed: Annotated[int, typer.Option(help="Random seed for RNGs.")] = 0,
+    rounds: Annotated[
+        int, typer.Option(help="Number of head-to-head rounds to run.")
+    ] = 1000,
 ):
     evaluate(run, env_name=env, seed=seed, rounds=rounds, output_name=out)
 

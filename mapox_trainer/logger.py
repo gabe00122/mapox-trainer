@@ -1,3 +1,4 @@
+import contextlib
 import json
 import os
 from abc import ABC, abstractmethod
@@ -104,12 +105,14 @@ class ConsoleLogger(BaseLogger):
 
 class JsonLogger(BaseLogger):
     def __init__(self, experiment_path: str) -> None:
-        self._file = open(f"{experiment_path}/logs.jsonl", "w")
+        self._stack = contextlib.ExitStack()
+        self._file = self._stack.enter_context(
+            open(f"{experiment_path}/logs.jsonl", "w")  # noqa: SIM115
+        )
 
     def close(self):
-        if self._file is not None:
-            self._file.close()
-            self._file = None
+        self._stack.close()
+        self._file = None
 
     def log_dict(self, data: Metrics, step: int) -> None:
         if self._file is not None:

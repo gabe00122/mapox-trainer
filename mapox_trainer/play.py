@@ -4,8 +4,9 @@ import jax
 from flax import nnx
 from mapox import Environment, TimeStep
 from mapox.agent import Agent
-from mapox.envs.rust_env_numpy import RustEnvNumpy, RustVideoConfig, RustEnvConfig
-from mapox.rust_play import rust_enjoy, run_ascii
+from mapox.envs.rust_env_numpy import RustEnvConfig, RustEnvNumpy, RustVideoConfig
+from mapox.rust_play import rust_enjoy
+from pydantic import TypeAdapter
 
 # from mapox.play import enjoy
 from mapox_trainer.checkpointer import Checkpointer
@@ -87,7 +88,9 @@ def play_from_run(
 ):
     experiment = Experiment.load(name, "results")
     config = experiment.config
-    env_config = cast(RustEnvConfig, config.environment)
+    env_config = TypeAdapter(RustEnvConfig).validate_python(
+        config.environment.model_dump()
+    )
     rngs = nnx.Rngs(default=experiment.default_seed)
 
     if video_path is not None:
@@ -100,11 +103,11 @@ def play_from_run(
             record_steps=config.max_env_steps,
         )
 
-    env = create_env_factory().create_env(
-        env_config, config.max_env_steps
-    )
-    task_id = env.task_names.index(env_name) if env_name is not None else 0
-    env.set_enjoy_mode(task_id)
+    env = create_env_factory().create_env(env_config, config.max_env_steps)
+    if env_name is not None:
+        if env_name not in env.task_names:
+            raise ValueError(f"unknown env {env_name!r}; this run has {env.task_names}")
+        env.set_enjoy_mode(env.task_names.index(env_name))
 
     agent = MapoxAgent(experiment, env, config.max_env_steps, env.num_tasks, rngs)
     rust_enjoy(cast(RustEnvNumpy, env), experiment.config.max_env_steps, seed, agent)

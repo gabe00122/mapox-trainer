@@ -108,7 +108,8 @@
         "name": "scouts",
         "num": 1024,
         "env": {
-          "env_type": "rust_scouts"
+          "env_type": "rust_scouts",
+          "view_height": 17
         }
       }
     ]

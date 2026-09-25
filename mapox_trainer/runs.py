@@ -51,7 +51,8 @@ def load_run(run_dir: Path) -> RunInfo | None:
 
     try:
         exp = Experiment.load(run_dir.name, base_dir=str(run_dir.parent))
-    except Exception:
+    except OSError, ValueError:
+        # malformed/unreadable run directory: skip it rather than kill the listing
         return None
 
     checkpoints_dir = run_dir / "checkpoints"

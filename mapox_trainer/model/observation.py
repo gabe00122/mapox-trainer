@@ -1,8 +1,8 @@
-from flax.nnx.nn.linear import default_embed_init
 import jax
-from jax import numpy as jnp
 from einops import rearrange
 from flax import nnx
+from flax.nnx.nn.linear import default_embed_init
+from jax import numpy as jnp
 from mapox import ObservationSpec
 
 from mapox_trainer.config import (
