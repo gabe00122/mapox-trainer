@@ -2,8 +2,8 @@
 
 `uv run scripts/export_burn_policy.py <run>` loads the run's latest checkpoint
 (like `demo_policy.py` does) and writes `results/<run>/burn/policy.safetensors`:
-every `nnx.Param` leaf (float32, or `--dtype float16` to halve the file for the
-web build) under its dotted state path, in the raw JAX layout (the rust loader owns all layout conversion), with the model config, env
+every `nnx.Param` leaf (float32, or `--dtype float16`/`bfloat16` to halve the
+file for the web build) under its dotted state path, in the raw JAX layout (the rust loader owns all layout conversion), with the model config, env
 config and specs embedded as JSON strings in the safetensors metadata:
 
     cargo run -p mapox-burn --example demo -- policy.safetensors
@@ -24,6 +24,7 @@ import json
 from pathlib import Path
 
 import jax
+import ml_dtypes
 import numpy as np
 from flax import nnx
 from mapox.envs.rust_env_numpy import RustEnvConfig
@@ -36,6 +37,14 @@ from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
 
 FORMAT = "mapox-burn-v1"
+
+# numpy has no native bfloat16; ml_dtypes (a jax dependency) provides it and
+# safetensors writes it as BF16
+DTYPES = {
+    "float32": np.dtype(np.float32),
+    "float16": np.dtype(np.float16),
+    "bfloat16": np.dtype(ml_dtypes.bfloat16),
+}
 
 
 def flatten_params(
@@ -115,7 +124,7 @@ def export_run(args: argparse.Namespace) -> None:
         "source": f"{experiment.unique_token}@{step}",
     }
 
-    tensors = flatten_params(model, np.dtype(args.dtype))
+    tensors = flatten_params(model, DTYPES[args.dtype])
     save_file(tensors, out, metadata=metadata)
 
     total = sum(t.size for t in tensors.values())
@@ -130,9 +139,9 @@ def main() -> None:
     parser.add_argument("--out", default=None, help="output .safetensors path")
     parser.add_argument(
         "--dtype",
-        choices=["float32", "float16"],
+        choices=list(DTYPES),
         default="float32",
-        help="storage dtype; the rust loader widens float16 back to f32",
+        help="storage dtype; the rust loader widens float16/bfloat16 back to f32",
     )
     export_run(parser.parse_args())
 
