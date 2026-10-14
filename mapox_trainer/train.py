@@ -9,17 +9,23 @@ from flax import nnx
 from mapox import Environment, TimeStep
 from rich.console import Console
 from rich.progress import track
+from rich.table import Table
 
 from mapox_trainer.checkpointer import Checkpointer
 from mapox_trainer.config import Config, PPOConfig
 from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
-from mapox_trainer.logger import JaxLogger
+from mapox_trainer.logger import JaxLogger, describe
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.optimizer import create_optimizer
 from mapox_trainer.rollout import Rollout, RolloutState
-from mapox_trainer.util import add_seq_dim, count_parameters, format_count
+from mapox_trainer.util import (
+    add_seq_dim,
+    count_parameters,
+    format_count,
+    json_normalize,
+)
 
 
 def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
@@ -282,6 +288,37 @@ def replicate_model(optimizer, sharding):
     nnx.update(optimizer, state)
 
 
+def print_run_summary(
+    console: Console,
+    experiment: Experiment,
+    elapsed: float,
+    total_env_steps: int,
+    logs: dict | None,
+):
+    hours, rem = divmod(int(elapsed), 3600)
+    minutes, seconds = divmod(rem, 60)
+
+    console.rule("[bold green]Run complete")
+    console.print(f"Run: {experiment.unique_token}")
+    console.print(f"Time: {hours:d}:{minutes:02d}:{seconds:02d}")
+    console.print(
+        f"Env steps: {format_count(total_env_steps)} "
+        f"({format_count(int(total_env_steps / max(elapsed, 1e-9)))}/s)"
+    )
+    console.print(f"Checkpoints: {experiment.checkpoints_url}")
+
+    if logs is None:
+        return
+
+    table = Table(title="Final metrics")
+    table.add_column("metric")
+    table.add_column("value", justify="right")
+    for key, value in json_normalize(jax.tree.map(describe, logs), sep=".").items():
+        value = float(value)
+        table.add_row(key, f"{value:.4f}")
+    console.print(table)
+
+
 def block_all(xs):
     return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
@@ -348,6 +385,9 @@ def train_run(experiment: Experiment):
             math.ceil(outer_updates / experiment.config.num_checkpoints),
         )
 
+    run_start_time = time.time()
+    logs = None
+
     step = jnp.asarray(0, dtype=jnp.int32)
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
@@ -379,5 +419,13 @@ def train_run(experiment: Experiment):
 
     logger.close()
     checkpointer.close()
+
+    print_run_summary(
+        console,
+        experiment,
+        time.time() - run_start_time,
+        env_steps_per_update * outer_updates,
+        logs,
+    )
 
     return -1.0
