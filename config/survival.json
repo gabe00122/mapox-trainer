@@ -1,0 +1,120 @@
+{
+  "environment": {
+    "env_type": "rust_multi",
+    "envs": [
+      {
+        "env": {
+          "env_type": "rust_survival"
+        },
+        "name": "survival",
+        "num": 128
+      }
+    ]
+  },
+  "learner": {
+    "model": {
+      "activation": "gelu",
+      "dtype": "bfloat16",
+      "hidden_features": 256,
+      "kernel_init": "glorot_uniform",
+      "layer": {
+        "feed_forward": {
+          "glu": true,
+          "size": 512
+        },
+        "history": {
+          "head_dim": 32,
+          "num_heads": 8,
+          "num_kv_heads": 1,
+          "rope_max_wavelength": 10000,
+          "sliding_window": null,
+          "type": "attention",
+          "use_qk_norm": false
+        },
+        "use_post_attn_norm": false,
+        "use_post_ffw_norm": false
+      },
+      "norm": "rms_norm",
+      "num_layers": 6,
+      "obs_encoder": {
+        "channels": [
+          16,
+          32
+        ],
+        "embedding_dim": 16,
+        "kernels": [
+          [
+            3,
+            5
+          ],
+          [
+            3,
+            3
+          ],
+          [
+            3,
+            3
+          ]
+        ],
+        "learned_embeddings": true,
+        "obs_type": "grid_cnn",
+        "strides": [
+          [
+            2,
+            2
+          ],
+          [
+            2,
+            2
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "param_dtype": "float32",
+      "value": {
+        "max": 15.0,
+        "min": -15.0,
+        "n_logits": 51,
+        "sigma": 0.3,
+        "type": "hl_gauss"
+      },
+      "value_hidden_dim": 256
+    },
+    "optimizer": {
+      "beta1": 0.94,
+      "beta2": 0.9,
+      "eps": 1.0e-8,
+      "learning_rate": 0.001,
+      "max_norm": 0.4,
+      "type": "muon",
+      "weight_decay": 0.01
+    },
+    "trainer": {
+      "discount": 0.996,
+      "entropy_coef": 0.001,
+      "epoch_count": 1,
+      "gae_lambda": 0.84,
+      "minibatch_count": 32,
+      "normalize_advantage": true,
+      "pg_clip": 0.207,
+      "trainer_type": "ppo",
+      "vf_coef": 3.01
+    }
+  },
+  "logger": {
+    "use_console": true,
+    "use_jsonl": true,
+    "use_neptune": false,
+    "use_tb": false,
+    "use_wandb": false
+  },
+  "max_env_steps": 1024,
+  "num_checkpoints": 5,
+  "seed": "random",
+  "snapshot_league": false,
+  "update_steps": 2500,
+  "updates_per_jit": 1
+}
