@@ -7,6 +7,7 @@ import typer
 from mapox_trainer.eval import main as eval_main
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.play import play_from_run
+from mapox_trainer.record import record_run
 from mapox_trainer.runs import list_runs_command
 from mapox_trainer.train import train_run
 
@@ -36,6 +37,21 @@ def enjoy(
         size=size,
         fps=fps,
     )
+
+
+@app.command()
+def record(
+    name: str,
+    out_dir: str = typer.Option(..., help="Directory to write the videos to."),
+    base_dir: str = "./results",
+    seed: int = 0,
+    steps: int | None = typer.Option(
+        None, help="Steps per video; defaults to one full episode."
+    ),
+    fps: int = 15,
+):
+    """Record one headless video per task of a rust-env run's latest checkpoint."""
+    record_run(name, out_dir, base_dir=base_dir, seed=seed, steps=steps, fps=fps)
 
 
 @app.command("train")
