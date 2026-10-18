@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax
 from einops import rearrange
 from flax import nnx
@@ -11,6 +13,51 @@ from mapox_trainer.config import (
     LinearObsEncoderConfig,
 )
 from mapox_trainer.util import FixedParam
+
+
+# table copies the embedding gradient is spread across before they're summed
+_GRAD_COPIES = 64
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(2,))
+def embedding_lookup(table: jax.Array, ids: jax.Array, dtype) -> jax.Array:
+    """`table[ids]` cast to `dtype`, with a privatized scatter for its gradient.
+
+    The default gradient of a gather is a scatter-add into the table. Every
+    tile of every observation is a lookup and a few ids dominate (floor tiles
+    are half of them), so its atomics pile up on a handful of rows. Here
+    consecutive lookups add into different copies of the table, which are
+    summed afterwards: the contention drops by the number of copies and the
+    cost stays independent of the vocabulary size.
+    """
+    return jnp.take(table, ids, axis=0).astype(dtype)
+
+
+def _embedding_lookup_fwd(table, ids, dtype):
+    return embedding_lookup(table, ids, dtype), (table, ids)
+
+
+def _embedding_lookup_bwd(dtype, residuals, grad):
+    table, ids = residuals
+    num_classes, features = table.shape
+    ids = ids.reshape(-1).astype(jnp.int32)
+    grad = grad.reshape(-1, features).astype(jnp.float32)
+
+    copy = jnp.arange(ids.shape[0], dtype=jnp.int32) % _GRAD_COPIES
+    # out-of-range ids get no gradient, as with the gather's own scatter,
+    # rather than landing in a neighbouring copy
+    slots = jnp.where(
+        (ids >= 0) & (ids < num_classes),
+        copy * num_classes + ids,
+        _GRAD_COPIES * num_classes,
+    )
+    copies = jnp.zeros((_GRAD_COPIES * num_classes, features), jnp.float32)
+    copies = copies.at[slots].add(grad, mode="drop")
+    table_grad = copies.reshape(_GRAD_COPIES, num_classes, features).sum(0)
+    return table_grad.astype(table.dtype), None
+
+
+embedding_lookup.defvjp(_embedding_lookup_fwd, _embedding_lookup_bwd)
 
 
 class LinearObsEncoder(nnx.Module):
@@ -96,7 +143,7 @@ class GridCnnObsEncoder(nnx.Module):
     def __call__(self, x: jax.Array) -> jax.Array:
         # only supports one channel for now
         assert x.shape[-1] == 1
-        x = jnp.take(self.embedding[:], x[..., 0], axis=0)
+        x = embedding_lookup(self.embedding[...], x[..., 0], self.dtype)
 
         for i, layer in enumerate(self.layers):
             x = layer(x)
