@@ -249,7 +249,7 @@ class TransformerActorCritic(nnx.Module):
                 param_dtype=param_dtype,
                 rngs=rngs,
             )
-            if task_count > 1
+            if task_count > 1 and config.task_embedding
             else None
         )
 

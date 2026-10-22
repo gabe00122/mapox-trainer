@@ -89,6 +89,7 @@ class TransformerActorCriticConfig(BaseModel):
 
     value_hidden_dim: int | None = None
     value: MseCriticConfig | HlGaussConfig = Field(discriminator="type")
+    task_embedding: bool = True
 
     activation: Literal["relu", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
