@@ -24,12 +24,19 @@ def create_optimizer(
         case "muon":
             # no grad clipping: muon's orthogonalization is invariant to
             # gradient scale, so max_norm is unused here
+            adam_learning_rate = optimizer_config.adam_learning_rate
+            if adam_learning_rate is None:
+                adam_learning_rate = optimizer_config.learning_rate
+
             return optax.contrib.muon(
                 optax.linear_schedule(optimizer_config.learning_rate, 0, update_steps),
                 # beta1 drives both momentum terms: muon's and adam's
                 beta=optimizer_config.beta1,
                 eps=optimizer_config.eps,
                 weight_decay=optimizer_config.weight_decay,
+                adam_learning_rate=optax.linear_schedule(
+                    adam_learning_rate, 0, update_steps
+                ),
                 adam_weight_decay=optimizer_config.weight_decay,
                 adam_b1=optimizer_config.beta1,
                 adam_b2=optimizer_config.beta2,

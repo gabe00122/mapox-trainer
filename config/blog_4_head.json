@@ -21,7 +21,8 @@
       "layer": {
         "feed_forward": {
           "glu": true,
-          "size": 768
+          "size": 768,
+          "activation": "gelu"
         },
         "history": {
           "type": "attention",
@@ -29,22 +30,18 @@
           "num_kv_heads": 4,
           "head_dim": 32,
           "sliding_window": null,
-          "rope_max_wavelength": 10000.0,
-          "use_qk_norm": false
-        },
-        "use_post_attn_norm": false,
-        "use_post_ffw_norm": false
+          "rope_max_wavelength": 10000.0
+        }
       },
       "num_layers": 6,
-      "value_hidden_dim": 768,
       "value": {
         "type": "hl_gauss",
         "min": -10.0,
         "max": 10.0,
         "n_logits": 51,
-        "sigma": 0.10381270166884848
+        "sigma": 0.10381270166884848,
+        "hidden_dim": 768
       },
-      "activation": "gelu",
       "norm": "rms_norm",
       "kernel_init": "glorot_uniform",
       "dtype": "bfloat16",

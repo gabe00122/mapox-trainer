@@ -53,7 +53,8 @@
       "layer": {
         "feed_forward": {
           "size": 512,
-          "glu": true
+          "glu": true,
+          "activation": "gelu"
         },
         "history": {
           "type": "attention",
@@ -61,22 +62,18 @@
           "num_kv_heads": 1,
           "head_dim": 32,
           "sliding_window": null,
-          "rope_max_wavelength": 10000.0,
-          "use_qk_norm": false
-        },
-        "use_post_attn_norm": false,
-        "use_post_ffw_norm": false
+          "rope_max_wavelength": 10000.0
+        }
       },
       "num_layers": 6,
-      "value_hidden_dim": 256,
       "value": {
         "type": "hl_gauss",
         "min": -2.0,
         "max": 25.0,
         "n_logits": 51,
-        "sigma": 0.3
+        "sigma": 0.3,
+        "hidden_dim": 256
       },
-      "activation": "gelu",
       "norm": "rms_norm",
       "kernel_init": "glorot_uniform",
       "dtype": "bfloat16",

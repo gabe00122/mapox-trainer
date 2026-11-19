@@ -35,7 +35,6 @@ class AttentionConfig(BaseModel):
     sliding_window: int | None = None
 
     rope_max_wavelength: float = 10_000
-    use_qk_norm: bool = False
 
     gate_dim: int | None = None
 
@@ -49,6 +48,7 @@ class FeedForwardConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     size: int
     glu: bool = True
+    activation: Literal["relu", "relu2", "gelu", "silu", "mish"]
 
 
 class LayerConfig(BaseModel):
@@ -59,13 +59,12 @@ class LayerConfig(BaseModel):
         default=None, discriminator="type"
     )
 
-    use_post_attn_norm: bool = False
-    use_post_ffw_norm: bool = False
-
 
 class MseCriticConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     type: Literal["mse"] = "mse"
+
+    hidden_dim: int | None = None
 
 
 class HlGaussConfig(BaseModel):
@@ -76,6 +75,8 @@ class HlGaussConfig(BaseModel):
     max: float
     n_logits: int
     sigma: float
+
+    hidden_dim: int | None = None
 
 
 class TransformerActorCriticConfig(BaseModel):
@@ -89,11 +90,9 @@ class TransformerActorCriticConfig(BaseModel):
     layer: LayerConfig
     num_layers: int
 
-    value_hidden_dim: int | None = None
     value: MseCriticConfig | HlGaussConfig = Field(discriminator="type")
     task_embedding: bool = True
 
-    activation: Literal["relu", "relu2", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
     kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = (
         "glorot_uniform"
@@ -117,6 +116,9 @@ class OptimizerConfig(BaseModel):
 
     type: Literal["adamw", "muon"]
     learning_rate: float
+    # muon only: learning rate for the parameters it leaves on adamw,
+    # defaults to learning_rate
+    adam_learning_rate: float | None = None
     weight_decay: float
     eps: float
     beta1: float
@@ -160,8 +162,6 @@ class Config(BaseModel):
     learner: LearnerConfig
     environment: EnvironmentConfig
     logger: LoggerConfig = LoggerConfig()
-
-    snapshot_league: bool = False
 
 
 def load_config(json_config: str) -> Config:

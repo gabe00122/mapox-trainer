@@ -7,7 +7,7 @@ from flax import nnx
 from jax import numpy as jnp
 from jax.scipy.stats import norm
 
-from mapox_trainer.config import HlGaussConfig
+from mapox_trainer.config import HlGaussConfig, MseCriticConfig
 
 
 class ValueRepresentation(Protocol):
@@ -66,14 +66,14 @@ class HlGaussHead(nnx.Module):
     def __init__(
         self,
         in_features: int,
-        hl_gauss_config: HlGaussConfig,
+        config: HlGaussConfig,
         *,
         rngs: nnx.Rngs,
     ) -> None:
-        self.hl_gauss_config = hl_gauss_config
+        self._config = config
         self.dense = nnx.Linear(
             in_features,
-            hl_gauss_config.n_logits,
+            config.n_logits,
             dtype=jnp.bfloat16,
             param_dtype=jnp.float32,
             rngs=rngs,
@@ -81,7 +81,7 @@ class HlGaussHead(nnx.Module):
 
     def __call__(self, x: jax.Array) -> ValueRepresentation:
         x = self.dense(x).astype(jnp.float32)
-        return HlGaussValueRepresentation(self.hl_gauss_config, x)
+        return HlGaussValueRepresentation(self._config, x)
 
 
 class MseValueRepresentation:
@@ -99,7 +99,14 @@ class MseValueRepresentation:
 
 
 class MseHead(nnx.Module):
-    def __init__(self, in_features: int, *, rngs: nnx.Rngs) -> None:
+    def __init__(
+        self,
+        in_features: int,
+        config: MseCriticConfig,
+        *,
+        rngs: nnx.Rngs,
+    ) -> None:
+        self._config = config
         self.dense = nnx.Linear(
             in_features,
             1,

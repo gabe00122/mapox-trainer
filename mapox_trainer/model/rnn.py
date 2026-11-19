@@ -4,16 +4,20 @@ from flax import nnx
 from jax import numpy as jnp
 from jax.typing import DTypeLike
 
+from mapox_trainer.config import RnnConfig
+
 
 class RnnBlock(nnx.Module):
     def __init__(
         self,
         d_model: int,
+        config: RnnConfig,
         *,
         dtype: DTypeLike | None = None,
         param_dtype: DTypeLike = jnp.float32,
         rngs: nnx.Rngs,
     ) -> None:
+        self._config = config
         self.d_model = d_model
         self.rnn = nnx.RNN(
             nnx.GRUCell(

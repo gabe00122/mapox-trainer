@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 import distrax
 import jax
 from flax import nnx
@@ -18,25 +16,6 @@ from mapox_trainer.model.feed_forward import FFBlock, GLUBlock
 from mapox_trainer.model.observation import create_obs_encoder
 from mapox_trainer.model.rnn import RnnBlock
 from mapox_trainer.model.value import HlGaussHead, MseHead, ValueRepresentation
-
-
-def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array]:
-    match activation_name:
-        case "relu":
-            return jax.nn.relu
-        case "relu2":
-                # squared relu (primer, arXiv 2109.08668)
-                return lambda x: jnp.square(jax.nn.relu(x))
-        case "mish":
-            return jax.nn.mish
-        case "gelu":
-            return jax.nn.gelu
-        case "silu":
-            return jax.nn.silu
-        case "tanh":
-            return jax.nn.tanh
-        case _:
-            raise ValueError(f"Activation function {activation_name} not recognized")
 
 
 def get_kernel_init(init_name: str) -> nnx.Initializer:
@@ -80,7 +59,6 @@ class TransformerBlock(nnx.Module):
         self,
         config: LayerConfig,
         hidden_features: int,
-        activation: Callable[[jax.Array], jax.Array],
         normalizer,
         max_seq_length: int,
         kernel_init: nnx.Initializer,
@@ -89,12 +67,9 @@ class TransformerBlock(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
-        history_config = config.history
-        self.use_history = history_config is not None
-        self.use_post_attn_norm = config.use_post_attn_norm
-        self.use_post_ffw_norm = config.use_post_ffw_norm
+        self._config = config
 
-        if history_config is not None:
+        if config.history is not None:
             self.history_norm = normalizer(
                 num_features=hidden_features,
                 dtype=dtype,
@@ -102,14 +77,18 @@ class TransformerBlock(nnx.Module):
                 rngs=rngs,
             )
 
-            if isinstance(history_config, RnnConfig):
+            if isinstance(config.history, RnnConfig):
                 self.history = RnnBlock(
-                    hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
+                    hidden_features,
+                    config.history,
+                    dtype=dtype,
+                    param_dtype=param_dtype,
+                    rngs=rngs,
                 )
             else:
                 self.history = AttentionBlock(
                     hidden_features,
-                    history_config,
+                    config.history,
                     max_seq_length=max_seq_length,
                     dtype=dtype,
                     param_dtype=param_dtype,
@@ -126,47 +105,26 @@ class TransformerBlock(nnx.Module):
         ff_block = GLUBlock if config.feed_forward.glu else FFBlock
         self.ffn = ff_block(
             hidden_features,
-            config.feed_forward.size,
-            activation=activation,
+            config.feed_forward,
             kernel_init=kernel_init,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
         )
 
-        if self.use_post_attn_norm:
-            self.post_attn_norm = normalizer(
-                num_features=hidden_features,
-                dtype=dtype,
-                param_dtype=param_dtype,
-                rngs=rngs,
-            )
-
-        if self.use_post_ffw_norm:
-            self.post_ffw_norm = normalizer(
-                num_features=hidden_features,
-                dtype=dtype,
-                param_dtype=param_dtype,
-                rngs=rngs,
-            )
-
     def initialize_carry(self, batch_size: int, rngs) -> KVCache | None:
-        if not self.use_history:
+        if self._config.history is None:
             return None
         return self.history.initialize_carry(batch_size, rngs)
 
     def __call__(self, x, time_steps, carry=None) -> tuple[jax.Array, KVCache | None]:
-        if self.use_history:
+        if self._config.history is not None:
             history_input = self.history_norm(x)
             history_output, carry = self.history(history_input, time_steps, carry)
-            if self.use_post_attn_norm:
-                history_output = self.post_attn_norm(history_output)
             x = x + history_output
 
         feed_forward_input = self.ffn_norm(x)
         feed_forward_output = self.ffn(feed_forward_input)
-        if self.use_post_ffw_norm:
-            feed_forward_output = self.post_ffw_norm(feed_forward_output)
         x = x + feed_forward_output
 
         return x, carry
@@ -214,16 +172,15 @@ class TransformerActorCritic(nnx.Module):
         *,
         rngs: nnx.Rngs,
     ):
+        self._config = config
+
         hidden_features = config.hidden_features
 
         # Convert string representations to actual objects if needed
         kernel_init = get_kernel_init(config.kernel_init)
-        activation = parse_activation_fn(config.activation)
         dtype = get_dtype(config.dtype)
         param_dtype = get_dtype(config.param_dtype)
         norm = get_norm(config.norm)
-
-        self.dtype = config.dtype
 
         self.reward_encoder = nnx.Linear(
             1, hidden_features, dtype=dtype, param_dtype=param_dtype, rngs=rngs
@@ -258,7 +215,6 @@ class TransformerActorCritic(nnx.Module):
                 TransformerBlock(
                     config=config.layer,
                     hidden_features=hidden_features,
-                    activation=activation,
                     normalizer=norm,
                     max_seq_length=max_seq_length,
                     kernel_init=kernel_init,
@@ -275,10 +231,10 @@ class TransformerActorCritic(nnx.Module):
             rngs=rngs,
         )
 
-        if config.value_hidden_dim is not None:
+        if config.value.hidden_dim is not None:
             self.value_mlp = nnx.Linear(
                 hidden_features,
-                config.value_hidden_dim,
+                config.value.hidden_dim,
                 dtype=dtype,
                 param_dtype=param_dtype,
                 rngs=rngs,
@@ -286,15 +242,15 @@ class TransformerActorCritic(nnx.Module):
 
         value_in_dim = (
             hidden_features
-            if config.value_hidden_dim is None
-            else config.value_hidden_dim
+            if config.value.hidden_dim is None
+            else config.value.hidden_dim
         )
 
         value_config = config.value
         if isinstance(value_config, HlGaussConfig):
             self.value_head = HlGaussHead(value_in_dim, value_config, rngs=rngs)
         else:
-            self.value_head = MseHead(value_in_dim, rngs=rngs)
+            self.value_head = MseHead(value_in_dim, value_config, rngs=rngs)
 
     def initialize_carry(self, batch_size: int, rngs) -> tuple[KVCache | None, ...]:
         return tuple(layer.initialize_carry(batch_size, rngs) for layer in self.layers)
@@ -337,7 +293,7 @@ class TransformerActorCritic(nnx.Module):
         policy = distrax.Categorical(logits=action_logits)
 
         prevalue = x
-        if hasattr(self, "value_mlp"):
+        if self._config.value.hidden_dim is not None:
             prevalue = self.value_mlp(prevalue)
             prevalue = nnx.gelu(prevalue)
 
