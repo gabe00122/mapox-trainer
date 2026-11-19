@@ -24,6 +24,9 @@ def parse_activation_fn(activation_name: str) -> Callable[[jax.Array], jax.Array
     match activation_name:
         case "relu":
             return jax.nn.relu
+        case "relu2":
+                # squared relu (primer, arXiv 2109.08668)
+                return lambda x: jnp.square(jax.nn.relu(x))
         case "mish":
             return jax.nn.mish
         case "gelu":
@@ -106,12 +109,8 @@ class TransformerBlock(nnx.Module):
             else:
                 self.history = AttentionBlock(
                     hidden_features,
-                    history_config.head_dim,
-                    history_config.num_heads,
-                    history_config.num_kv_heads,
+                    history_config,
                     max_seq_length=max_seq_length,
-                    rope_max_wavelength=history_config.rope_max_wavelength,
-                    use_qk_norm=history_config.use_qk_norm,
                     dtype=dtype,
                     param_dtype=param_dtype,
                     kernel_init=kernel_init,

@@ -76,6 +76,8 @@ def muon_dim_numbers_fn(params):
             return None
         if not hasattr(x, "ndim"):
             return None
+        if "history" in names and "gate" in names:
+            return None
         if x.ndim == 3 and "history" in names and "kernel" in names:
             for module, dim_numbers in ATTENTION_DIM_NUMBERS.items():
                 if module in names:

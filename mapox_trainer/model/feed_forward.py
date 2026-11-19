@@ -23,7 +23,6 @@ class FFBlock(nnx.Module):
 
         linear = functools.partial(
             nnx.Linear,
-            kernel_init=kernel_init,
             use_bias=False,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -31,8 +30,8 @@ class FFBlock(nnx.Module):
         )
 
         self.activation = activation
-        self.up_proj = linear(d_model, hidden_features)
-        self.down_proj = linear(hidden_features, d_model)
+        self.up_proj = linear(d_model, hidden_features, kernel_init=kernel_init)
+        self.down_proj = linear(hidden_features, d_model, kernel_init=nnx.initializers.zeros_init())
 
     def __call__(self, inputs):
         x = self.up_proj(inputs)
@@ -59,16 +58,15 @@ class GLUBlock(nnx.Module):
         linear = functools.partial(
             nnx.Linear,
             use_bias=False,
-            kernel_init=kernel_init,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
         )
 
         self.activation = activation
-        self.up_proj = linear(d_model, hidden_features)
-        self.up_gate = linear(d_model, hidden_features)
-        self.down_proj = linear(hidden_features, d_model)
+        self.up_proj = linear(d_model, hidden_features, kernel_init=kernel_init)
+        self.up_gate = linear(d_model, hidden_features, kernel_init=kernel_init,)
+        self.down_proj = linear(hidden_features, d_model, kernel_init=nnx.initializers.zeros_init())
 
     def __call__(self, inputs):
         x = self.up_proj(inputs)

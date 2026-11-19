@@ -37,6 +37,8 @@ class AttentionConfig(BaseModel):
     rope_max_wavelength: float = 10_000
     use_qk_norm: bool = False
 
+    gate_dim: int | None = None
+
 
 class RnnConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -91,7 +93,7 @@ class TransformerActorCriticConfig(BaseModel):
     value: MseCriticConfig | HlGaussConfig = Field(discriminator="type")
     task_embedding: bool = True
 
-    activation: Literal["relu", "gelu", "silu", "mish"]
+    activation: Literal["relu", "relu2", "gelu", "silu", "mish"]
     norm: Literal["layer_norm", "rms_norm"]
     kernel_init: Literal["glorot_uniform", "he_uniform", "lecun_uniform", "normal"] = (
         "glorot_uniform"
