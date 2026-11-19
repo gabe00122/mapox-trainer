@@ -12,6 +12,7 @@ Only rust-env runs fit: the env config is embedded for the rust demo to
 rebuild, and the obs encoder embeds a single observation channel. Multitask
 (`rust_multi`) runs carry a task embedding, sized by `num_tasks` in the
 metadata; the rust viewer plays one task at a time.
+Exports embed one environment copy per multitask entry.
 """
 
 import os
@@ -112,10 +113,13 @@ def export_run(args: argparse.Namespace) -> None:
     obs_spec = env.observation_spec
     max_value = obs_spec.max_value
     assert isinstance(max_value, tuple)
+    export_env_config = env_config.model_dump()
+    for task in export_env_config.get("envs", []):
+        task["num"] = 1
     metadata = {
         "format": FORMAT,
         "model_config": model_config.model_dump_json(),
-        "env_config": env_config.model_dump_json(),
+        "env_config": json.dumps(export_env_config, sort_keys=True),
         "obs_shape": json.dumps(list(obs_spec.shape)),
         "obs_max_value": json.dumps(list(max_value)),
         "action_dim": str(env.action_spec.n),
