@@ -198,6 +198,7 @@ def ppo_loss(
 
 
 def train(
+    model: TransformerActorCritic,
     optimizer: nnx.Optimizer,
     rngs: nnx.Rngs,
     step: jax.Array,
@@ -212,43 +213,44 @@ def train(
         return ppo_loss(model, rollout_state, hypers, progress)
 
     def _minibatch_step(carry, rollout_state):
-        optimizer, logs, progress = carry
-        grad, step_logs = _vec_grad(optimizer.model, rollout_state, progress)
+        model, optimizer, logs, progress = carry
+        grad, step_logs = _vec_grad(model, rollout_state, progress)
 
-        optimizer.update(grad)
+        optimizer.update(model, grad)
         logs = jax.tree.map(lambda x, y: x + y, logs, step_logs)
 
-        return (optimizer, logs, progress)
+        return (model, optimizer, logs, progress)
 
     def _epoch_step(i, x):
-        optimizer, rollout_state, logs, rngs, progress = x
+        model, optimizer, rollout_state, logs, rngs, progress = x
 
         minibatch_rng = rngs.shuffle()
         minibatch_rollout_state = rollout.create_minibatches(
             rollout_state, hypers.minibatch_count, minibatch_rng
         )
-        optimizer, logs, progress = nnx.scan(
+        model, optimizer, logs, progress = nnx.scan(
             _minibatch_step, in_axes=(nnx.Carry, 0), out_axes=nnx.Carry
-        )((optimizer, logs, progress), minibatch_rollout_state)
+        )((model, optimizer, logs, progress), minibatch_rollout_state)
 
-        return optimizer, rollout_state, logs, rngs, progress
+        return model, optimizer, rollout_state, logs, rngs, progress
 
     def _global_step(i, x):
-        optimizer, logs, env_logs, rngs, step_value = x
+        model, optimizer, logs, env_logs, rngs, step_value = x
         progress = step_value / config.update_steps
 
         rollout_state, env_log_update, rngs = evaluate(
-            optimizer.model,
+            model,
             rollout,
             rngs,
             env,
             hypers,
         )
-        optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
+        model, optimizer, rollout_state, logs, rngs, _ = nnx.fori_loop(
             0,
             hypers.epoch_count,
             _epoch_step,
             init_val=(
+                model,
                 optimizer,
                 rollout_state,
                 logs,
@@ -259,16 +261,16 @@ def train(
 
         env_logs = jax.tree.map(lambda x, y: x + y, env_logs, env_log_update)
 
-        return optimizer, logs, env_logs, rngs, step_value + 1
+        return model, optimizer, logs, env_logs, rngs, step_value + 1
 
     logs = create_training_logs()
     env_logs = env.create_placeholder_logs()
 
-    optimizer, logs, env_logs, rngs, step = nnx.fori_loop(
+    model, optimizer, logs, env_logs, rngs, step = nnx.fori_loop(
         0,
         config.updates_per_jit,
         _global_step,
-        init_val=(optimizer, logs, env_logs, rngs, step),
+        init_val=(model, optimizer, logs, env_logs, rngs, step),
     )
 
     logs = jax.tree.map(
@@ -279,7 +281,7 @@ def train(
     )
     env_logs = jax.tree.map(lambda x: x / config.updates_per_jit, env_logs)
 
-    return optimizer, rngs, step, {"algo": logs, "env": env_logs}
+    return model, optimizer, rngs, step, {"algo": logs, "env": env_logs}
 
 
 def replicate_model(optimizer, sharding):
@@ -370,8 +372,8 @@ def train_run(experiment: Experiment):
     )
     load_init_weights(model, experiment)
 
-    optimizer = nnx.ModelAndOptimizer(
-        model=model,
+    optimizer = nnx.Optimizer(
+        model,
         tx=create_optimizer(
             experiment.config.learner.optimizer,
             experiment.config.update_steps
@@ -383,7 +385,7 @@ def train_run(experiment: Experiment):
 
     rngs = nnx.Rngs(default=jax.random.PRNGKey(experiment.default_seed))
 
-    jitted_train = nnx.jit(train, static_argnums=(3, 4, 5))
+    jitted_train = nnx.jit(train, static_argnums=(4, 5, 6))
 
     env_steps_per_update = (
         batch_size
@@ -411,8 +413,8 @@ def train_run(experiment: Experiment):
     for i in track(range(outer_updates), description="Training", console=console):
         start_time = time.time()
 
-        optimizer, rngs, step, logs = jitted_train(
-            optimizer, rngs, step, rollout, env, experiment.config
+        model, optimizer, rngs, step, logs = jitted_train(
+            model, optimizer, rngs, step, rollout, env, experiment.config
         )
         rust_logs = env.consume_metrics()
         logs["env"] = rust_logs
@@ -432,9 +434,9 @@ def train_run(experiment: Experiment):
 
         if checkpoint_interval is not None and (i + 1) % checkpoint_interval == 0:
             completed_updates = (i + 1) * experiment.config.updates_per_jit
-            checkpointer.save(optimizer.model, completed_updates)
+            checkpointer.save(model, optimizer, completed_updates)
 
-    checkpointer.save(optimizer.model, experiment.config.update_steps)
+    checkpointer.save(model, optimizer, experiment.config.update_steps)
 
     logger.close()
     checkpointer.close()

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import jax.numpy as jnp
+import optax
 import pytest
 from flax import nnx
 
@@ -30,7 +31,8 @@ def make_source(base_dir: Path, config: Config, steps: dict[int, nnx.Module]):
     experiment = Experiment.from_config("source", config, str(base_dir))
     with Checkpointer(experiment.checkpoints_url) as checkpointer:
         for step, model in steps.items():
-            checkpointer.save(model, step)
+            optimizer = nnx.Optimizer(model, optax.sgd(0.1), wrt=nnx.Param)
+            checkpointer.save(model, optimizer, step)
 
 
 def new_run(base_dir: Path, config: Config, **fields) -> Experiment:

@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]"]
+cuda = ["jax[cuda13]"]
 tpu = ["jax[tpu]"]
 craftax = ["craftax==1.5.0"]
 
@@ -42,8 +42,6 @@ where = ["."]
 include = ["mapox_trainer*"]
 exclude = ["config*", "videos*"]
 
-[tool.uv.sources]
-mapox = { path = "../mapox" }
 
 [dependency-groups]
 dev = [

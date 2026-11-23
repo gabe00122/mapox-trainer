@@ -110,10 +110,10 @@ Training is configured via JSON files. See `config/` for examples. The key secti
 | Field | Description |
 |---|---|
 | `seed` | Random seed, or `"random"` to generate one |
+| `init_from` | Name of a run to copy the starting weights from (default: none) |
 | `max_env_steps` | Maximum steps per episode |
 | `update_steps` | Total number of PPO updates to run |
 | `num_checkpoints` | Number of model checkpoints to save during training (default: 50) |
-| `snapshot_league` | Enable snapshot league self-play (default: false) |
 
 **Model** (`learner.model`)
 | Field | Description |
@@ -124,7 +124,9 @@ Training is configured via JSON files. See `config/` for examples. The key secti
 | `layer.history.num_heads` / `num_kv_heads` | Query heads and key-value heads (for grouped query attention) |
 | `layer.feed_forward.size` | Feed-forward hidden size |
 | `layer.feed_forward.glu` | Use gated linear units (default: true) |
+| `layer.feed_forward.activation` | Activation: `"relu"`, `"relu2"`, `"gelu"`, `"silu"` or `"mish"` |
 | `value.type` | Value function head: `"mse"` or `"hl_gauss"` |
+| `value.hidden_dim` | Width of a hidden layer in front of the value head (default: none) |
 | `dtype` | Compute dtype: `"float32"`, `"bfloat16"`, or `"float16"` |
 
 **Optimizer** (`learner.optimizer`)
@@ -132,6 +134,7 @@ Training is configured via JSON files. See `config/` for examples. The key secti
 |---|---|
 | `type` | `"adamw"` or `"muon"` |
 | `learning_rate` | Learning rate |
+| `adam_learning_rate` | With `"muon"`, learning rate for the parameters left on AdamW (default: same as `learning_rate`) |
 | `max_norm` | Gradient clipping max norm |
 
 **PPO** (`learner.trainer`)
