@@ -30,6 +30,7 @@ class Experiment:
         self.unique_token = unique_token
         self.config = config
         self.meta = meta
+        self.base_dir = base_dir
 
         # build the URL once
         self.experiment_url = f"{base_dir.rstrip('/')}/{self.unique_token}"

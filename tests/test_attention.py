@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 from flax import nnx
 
+from mapox_trainer.config import AttentionConfig
 from mapox_trainer.model.attention import AttentionBlock
 
 
@@ -17,18 +18,27 @@ def make_attention(
     num_heads=4,
     num_kv_heads=4,
     max_seq_length=16,
-    **kwargs,
+    **config_kwargs,
 ) -> AttentionBlock:
-    return AttentionBlock(
-        d_model=d_model,
+    config = AttentionConfig(
         head_dim=head_dim,
         num_heads=num_heads,
         num_kv_heads=num_kv_heads,
+        **config_kwargs,
+    )
+    attn = AttentionBlock(
+        d_model,
+        config,
         max_seq_length=max_seq_length,
         attention_impl="xla",  # Use XLA for testing (no CuDNN required)
         rngs=nnx.Rngs(default=0),
-        **kwargs,
     )
+    # the output projection is zero-initialised, so a fresh block outputs
+    # zeros and every comparison below would pass trivially
+    attn.out.kernel.set_value(
+        jax.random.normal(jax.random.PRNGKey(42), attn.out.kernel.shape)
+    )
+    return attn
 
 
 class TestAttentionBlock:

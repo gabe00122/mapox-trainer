@@ -323,6 +323,24 @@ def block_all(xs):
     return jax.tree_util.tree_map(lambda x: x.block_until_ready(), xs)
 
 
+def load_init_weights(model: TransformerActorCritic, experiment: Experiment):
+    """Start `model` from the latest checkpoint of the run named by
+    `config.init_from`. The optimizer state is not carried over."""
+    name = experiment.config.init_from
+    if name is None:
+        return
+
+    source = Experiment.load(name, experiment.base_dir)
+    if source.config.learner.model != experiment.config.learner.model:
+        raise ValueError(f"init_from: learner.model differs from the config of {name}")
+
+    with Checkpointer(source.checkpoints_url) as checkpointer:
+        if checkpointer.mngr.latest_step() is None:
+            raise ValueError(f"init_from: {name} has no checkpoints")
+        # orbax raises if a parameter is missing or has a different shape
+        checkpointer.restore_latest(model)
+
+
 def train_run(experiment: Experiment):
     console = Console()
 
@@ -350,6 +368,7 @@ def train_run(experiment: Experiment):
         task_count=task_count,
         rngs=rngs,
     )
+    load_init_weights(model, experiment)
 
     optimizer = nnx.ModelAndOptimizer(
         model=model,

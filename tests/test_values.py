@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import pytest
 from flax import nnx
 
-from mapox_trainer.config import HlGaussConfig
+from mapox_trainer.config import HlGaussConfig, MseCriticConfig
 from mapox_trainer.model.value import (
     HlGaussHead,
     HlGaussValueRepresentation,
@@ -146,7 +146,7 @@ class TestValueHeads:
         assert representation.loss(jnp.zeros((2, 4))).shape == (2, 4)
 
     def test_mse_head_output(self):
-        head = MseHead(32, rngs=nnx.Rngs(default=0))
+        head = MseHead(32, MseCriticConfig(), rngs=nnx.Rngs(default=0))
         representation = head(jnp.ones((2, 4, 32)))
 
         assert representation.value().shape == (2, 4)

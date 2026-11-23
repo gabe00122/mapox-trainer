@@ -153,6 +153,8 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     seed: int | Literal["random"] = "random"
+    # run whose latest checkpoint the weights start from
+    init_from: str | None = None
     max_env_steps: int
 
     updates_per_jit: int = 1
