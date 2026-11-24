@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 from mapox import ActionSpec, ObservationSpec
 
-from mapox_trainer.rollout import Rollout
+from mapox_trainer.rollout import Rollout, discounted_episode_return
 
 
 def make_rollout(batch_size: int = 2, trajectory_length: int = 4) -> Rollout:
@@ -191,3 +191,44 @@ class TestCalculateAdvantage:
 
         # With discount=0, target_t = reward_t
         assert jnp.allclose(result.targets, rewards, atol=1e-5)
+
+
+class TestDiscountedEpisodeReturn:
+    def test_single_episode_is_return_from_first_turn(self):
+        rewards = jnp.array([[1.0, 2.0, 4.0], [0.0, 0.0, 8.0]])
+        terminated = jnp.zeros((2, 3), dtype=jnp.bool_)
+
+        result = discounted_episode_return(rewards, terminated, 0.5)
+
+        # agent 0: 1 + 0.5*2 + 0.25*4 = 3, agent 1: 0.25*8 = 2
+        assert jnp.allclose(result, 2.5, atol=1e-5)
+
+    def test_earlier_reward_scores_higher(self):
+        terminated = jnp.zeros((1, 4), dtype=jnp.bool_)
+
+        early = discounted_episode_return(
+            jnp.array([[1.0, 0.0, 0.0, 0.0]]), terminated, 0.9
+        )
+        late = discounted_episode_return(
+            jnp.array([[0.0, 0.0, 0.0, 1.0]]), terminated, 0.9
+        )
+
+        assert early > late
+
+    def test_averages_over_every_episode_start(self):
+        rewards = jnp.array([[1.0, 2.0, 3.0, 4.0]])
+        # the first episode ends after turn 1, so turn 2 starts a second one
+        terminated = jnp.array([[False, True, False, False]])
+
+        result = discounted_episode_return(rewards, terminated, 0.5)
+
+        # episode 1: 1 + 0.5*2 = 2, episode 2: 3 + 0.5*4 = 5
+        assert jnp.allclose(result, 3.5, atol=1e-5)
+
+    def test_termination_on_last_turn_starts_no_episode(self):
+        rewards = jnp.array([[1.0, 2.0]])
+        terminated = jnp.array([[False, True]])
+
+        result = discounted_episode_return(rewards, terminated, 0.5)
+
+        assert jnp.allclose(result, 2.0, atol=1e-5)
