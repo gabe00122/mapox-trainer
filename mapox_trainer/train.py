@@ -19,7 +19,11 @@ from mapox_trainer.experiment import Experiment
 from mapox_trainer.logger import JaxLogger, describe
 from mapox_trainer.model.network import TransformerActorCritic
 from mapox_trainer.optimizer import create_optimizer
-from mapox_trainer.rollout import Rollout, RolloutState
+from mapox_trainer.rollout import (
+    Rollout,
+    RolloutState,
+    discounted_episode_return,
+)
 from mapox_trainer.util import (
     add_seq_dim,
     count_parameters,
@@ -40,6 +44,7 @@ def explained_variance(values: jax.Array, targets: jax.Array) -> jax.Array:
 def create_training_logs() -> dict[str, jax.Array]:
     return {
         "rewards": jnp.array(0.0),
+        "discounted_return": jnp.array(0.0),
         "value_loss": jnp.array(0.0),
         "actor_loss": jnp.array(0.0),
         "entropy_loss": jnp.array(0.0),
@@ -183,6 +188,9 @@ def ppo_loss(
 
     logs = {
         "rewards": rollout.rewards.sum(axis=1).mean(),
+        "discounted_return": discounted_episode_return(
+            rollout.rewards, rollout.next_terminated, hypers.discount
+        ),
         "value_loss": value_loss,
         "actor_loss": actor_loss,
         "entropy_loss": entropy_loss,

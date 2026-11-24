@@ -30,6 +30,64 @@ class RolloutState(NamedTuple):
     task_ids: jax.Array
 
 
+def lambda_returns(
+    rewards: jax.Array,
+    next_terminated: jax.Array,
+    values: jax.Array,
+    discount: float,
+    gae_lambda: float,
+) -> jax.Array:
+    """TD(lambda) return for every turn of a (batch, time) rollout.
+
+    `values` carries one extra trailing entry, the estimate that bootstraps the
+    turns after the rollout ends. A termination zeroes the discount, so nothing
+    leaks back across an episode boundary.
+    """
+
+    def _body(acc, xs):
+        rewards, discount, v_tp1 = xs
+        acc = rewards + discount * ((1 - gae_lambda) * v_tp1 + gae_lambda * acc)
+        return acc, acc
+
+    # swap to time major
+    rewards = jnp.swapaxes(rewards, 0, 1)
+    terminated = jnp.swapaxes(next_terminated, 0, 1)
+    values = jnp.swapaxes(values, 0, 1)
+
+    _, returns = jax.lax.scan(
+        _body,
+        values[-1],
+        (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
+        reverse=True,
+    )
+
+    return jnp.swapaxes(returns, 0, 1)
+
+
+def discounted_episode_return(
+    rewards: jax.Array, next_terminated: jax.Array, discount: float
+) -> jax.Array:
+    """Mean discounted return measured from the first turn of each episode.
+
+    Built from rewards alone: lambda=1 over a zero value function, so nothing is
+    bootstrapped. An episode starts on turn 0 and on every turn that follows a
+    termination, so a rollout holding several episodes per agent averages over
+    all of them.
+    """
+    batch_size, trajectory_length = rewards.shape
+    returns = lambda_returns(
+        rewards,
+        next_terminated,
+        jnp.zeros((batch_size, trajectory_length + 1), dtype=rewards.dtype),
+        discount,
+        gae_lambda=1.0,
+    )
+    starts = jnp.concatenate(
+        [jnp.ones_like(next_terminated[:, :1]), next_terminated[:, :-1]], axis=1
+    )
+    return jnp.sum(returns, where=starts) / jnp.sum(starts)
+
+
 class Rollout:
     def __init__(
         self,
@@ -130,26 +188,10 @@ class Rollout:
         gae_lambda: float,
         norm_adv: bool,
     ) -> RolloutState:
-        def _body(acc, xs):
-            rewards, discount, v_tp1 = xs
-            acc = rewards + discount * ((1 - gae_lambda) * v_tp1 + gae_lambda * acc)
-            return acc, acc
-
-        # swap to time major
-        rewards = jnp.swapaxes(state.rewards, 0, 1)
-        terminated = jnp.swapaxes(state.next_terminated, 0, 1)
-        values = jnp.swapaxes(state.values, 0, 1)
-
-        _, targets = jax.lax.scan(
-            _body,
-            values[-1],
-            (rewards, jnp.where(terminated, 0.0, discount), values[1:]),
-            reverse=True,
+        targets = lambda_returns(
+            state.rewards, state.next_terminated, state.values, discount, gae_lambda
         )
-        advantages = targets - values[:-1]
-
-        targets = jnp.swapaxes(targets, 0, 1)
-        advantages = jnp.swapaxes(advantages, 0, 1)
+        advantages = targets - state.values[:, :-1]
 
         # rollout norm
         if norm_adv:
