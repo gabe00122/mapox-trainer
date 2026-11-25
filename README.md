@@ -17,7 +17,7 @@ Blog Posts:
 * **PPO Implementation**: A clean and efficient Proximal Policy Optimization (PPO) implementation.
 * **Multi-task training**: One model can be trained on multiple environments simultaneously with unique task ID embeddings.
 * **Snapshot League self play**: Policy snapshots can be rotated into the opponent pool during training.
-* **TrueSkill Evaluations**: Policies for zero-sum games can be compared using a TrueSkill-based evaluation system and a model checkpoint pool.
+* **League Evaluations**: The checkpoints of any number of runs are compared by playing them together in one shared batch, as each other's random teammates and opponents.
 * **Discretized Value Functions**: Option to either minimize MSE or HL-Gauss discretized values.
 
 ---
@@ -152,15 +152,25 @@ Set `env_type` directly for a single environment (e.g. `"find_return"`, `"king_h
 
 ---
 
-### Evaluating Zero-Sum Games
+### Evaluating Runs
 
-To track progress and compare different training runs for zero-sum games, we can use TrueSkill to create an Elo-like score using an opponent pool of model checkpoints.
-
-To build a TrueSkill graph from a series of runs, use the following command.
+To track progress and compare training runs, `eval` loads every checkpoint of the given runs into one pool and plays them together. Each round all of the env's agent slots are shuffled and dealt out evenly between the checkpoints, so a checkpoint's teammates and opponents are random draws from the pool. A checkpoint's score is the mean return of the first life of the slots it played, per task.
 
 ```bash
-uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis/graph.png
+uv run pmarl eval --run blue-whale --run red-fish --rounds 8 --out ./analysis/graph
 ```
+
+This writes `graph.csv` (mean, standard error and sample count for each checkpoint and task) and `graph.png`. The runs must have trained on the same tasks; they are played in the env of the first run.
+
+To play in a different env, pass `--env-config` a training config: its `environment` and `max_env_steps` are used in place of the first run's. It needs the same tasks as the runs, but their settings can differ.
+
+Every checkpoint plays the same number of agents, so the env's total agent count must be a multiple of the number of checkpoints in the pool; `eval` stops with an error otherwise. `--env-config` is the way to get there: copy a run's `config.json` and set the games of each task (`num`) so that the total divides. How many agents of each task a checkpoint gets varies from round to round, so the `count` column differs a little between checkpoints.
+
+```bash
+uv run pmarl eval --run blue-whale --env-config ./config/blue-whale-small.json --out ./analysis/graph
+```
+
+That is also how a league is fit to a smaller GPU than the runs trained on. All the checkpoints are on the GPU at once, and every agent keeps an attention cache for the whole episode, so memory grows with both the pool and the batch. Copy the training config and lower the `num` of each task, keeping the total agent count a multiple of the pool's size. `eval` takes 95% of the GPU's memory by default, which `XLA_PYTHON_CLIENT_MEM_FRACTION` overrides.
 
 ---
 
@@ -169,7 +179,7 @@ uv run pmarl eval --run blue-whale --run red-fish --rounds 1000 --out ./analysis
 If the observation and action spaces are shared across environments, then one policy can be trained on multiple environments simultaneously.
 See the `multitask.json` config for an example.
 
-If multitask training was used, the `--env name` argument is required for evaluation and playback to specify which task you are viewing or evaluating. For non-multitask environments this option is unnecessary.
+If multitask training was used, the `--env name` argument is required for playback to specify which task you are viewing. For non-multitask environments this option is unnecessary.
 
 ## 🏋️‍♂️ Environments
 

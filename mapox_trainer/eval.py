@@ -1,230 +1,385 @@
-import random
+"""League evaluation: every checkpoint of every run plays in one shared batch.
+
+The env's agent slots are dealt out evenly between the checkpoints by one
+shuffle of all of them, redone every round, so a checkpoint's teammates and
+opponents are random draws from the pool. A checkpoint is scored by the mean
+return of the first life of the slots it played, per task.
+
+Every checkpoint plays the same number of slots, so the env's agent count has
+to be a multiple of the pool size. How many of them are of each task is up to
+the shuffle, and evens out over the rounds.
+"""
+
 from dataclasses import dataclass
-from functools import partial
+from itertools import pairwise
 from typing import Annotated, Any
 
+import fsspec
 import jax
+import numpy as np
 import pandas as pd
-import trueskill
 import typer
 from flax import nnx
 from jax import numpy as jnp
-from mapox import Environment, TimeStep
-from rich import progress
+from mapox import Environment, EnvironmentConfig, TimeStep
 from rich.console import Console
+from rich.table import Table
 
 from mapox_trainer.checkpointer import Checkpointer
+from mapox_trainer.config import load_config
 from mapox_trainer.constants import index_type
 from mapox_trainer.envs import create_env_factory
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.model.network import TransformerActorCritic
-from mapox_trainer.train import add_seq_dim
-from mapox_trainer.utils.ranking_plot import save_ranking_plot
+from mapox_trainer.utils.eval_plot import save_eval_plot
 
-console = Console()
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-@dataclass
-class PolicyRecord:
-    name: str
+@dataclass(frozen=True)
+class Checkpoint:
+    run: str
     step: int
-    rating: trueskill.Rating
-    model: Any
-    task_id: int
 
 
-@partial(nnx.jit, static_argnums=(0, 3, 4, 5))
-def _round(
+@dataclass
+class PolicyGroup:
+    """Checkpoints of one architecture, their weights stacked on a leading axis.
+
+    Only weights of the same shapes stack, so each architecture in the pool is
+    its own group and its own forward pass.
+    """
+
+    template: TransformerActorCritic
+    state: nnx.State
+    count: int
+
+    def initialize_carry(self, seats: int):
+        carry = self.template.initialize_carry(seats, nnx.Rngs(0))
+        return jax.tree.map(
+            lambda x: jnp.broadcast_to(x, (self.count, *x.shape)), carry
+        )
+
+    def act(self, state: nnx.State, ts: TimeStep, carry, key: jax.Array):
+        """Sample an action for every seat of every checkpoint in the group."""
+        graphdef = nnx.graphdef(self.template)
+
+        def _act(state, ts, carry, key):
+            _, policy, carry = nnx.merge(graphdef, state)(ts, carry)
+            action = policy.sample(seed=key).squeeze(axis=-1).astype(index_type)
+            return action, carry
+
+        return jax.vmap(_act)(state, ts, carry, jax.random.split(key, self.count))
+
+
+def seats_per_checkpoint(num_slots: int, num_checkpoints: int) -> int:
+    """How many of the env's agent slots each checkpoint plays in a round."""
+    seats, left_over = divmod(num_slots, num_checkpoints)
+    if left_over:
+        raise ValueError(
+            f"the env's {num_slots} agents don't divide evenly between the "
+            f"{num_checkpoints} checkpoints. Pass --env-config a config whose "
+            f"agent count is a multiple of {num_checkpoints}."
+        )
+    return seats
+
+
+def assign_seats(key: jax.Array, num_slots: int, num_checkpoints: int) -> jax.Array:
+    """Deal the env's slots out evenly between the checkpoints, at random.
+
+    Returns the env slot behind each seat, shaped (checkpoints, seats): a row is
+    the slots one checkpoint plays, of whichever tasks the shuffle gave it.
+    """
+    seats = seats_per_checkpoint(num_slots, num_checkpoints)
+    return jax.random.permutation(key, num_slots).reshape(num_checkpoints, seats)
+
+
+def make_league_eval(
     env: Environment,
-    policy1: TransformerActorCritic,
-    policy2: TransformerActorCritic,
-    policy1_task_id: int,
-    policy2_task_id: int,
+    groups: list[PolicyGroup],
     max_steps: int,
-    rngs: nnx.Rngs,
+    rounds: int,
 ):
-    team_size = env.num_agents // 2
-    teams = env.teams
-    if teams is None:
-        # Cooperative envs (including the rust ones) report no teams; split the
-        # agents in half so the two policies still get distinct rewards.
-        teams = jnp.concatenate(
-            [jnp.zeros(team_size, dtype=jnp.int8), jnp.ones(team_size, dtype=jnp.int8)]
+    """Build the jitted league: `(group states, key) -> (sum, sum of squares,
+    count)` of the first-life returns, each shaped (rounds, checkpoints, tasks).
+    """
+    num_checkpoints = sum(group.count for group in groups)
+    seats = seats_per_checkpoint(env.num_agents, num_checkpoints)
+    group_starts = np.cumsum([0, *(group.count for group in groups)])
+
+    def _rows(tree, start: int, stop: int):
+        return jax.tree.map(lambda x: x[start:stop], tree)
+
+    def _round(states: tuple[nnx.State, ...], key: jax.Array):
+        seat_key, reset_key, rollout_key = jax.random.split(key, 3)
+
+        slot_of_seat = assign_seats(seat_key, env.num_agents, num_checkpoints)
+
+        env_state, timestep = env.reset(reset_key)
+        # a slot plays one task for the whole round; an env of one task names none
+        if timestep.task_ids is None:
+            task_of_slot = jnp.zeros((env.num_agents,), jnp.int32)
+        else:
+            task_of_slot = jnp.asarray(timestep.task_ids)
+        # (checkpoints, seats, tasks): the task each seat's return counts toward
+        seat_task = jax.nn.one_hot(task_of_slot[slot_of_seat], env.num_tasks)
+        carries = tuple(group.initialize_carry(seats) for group in groups)
+        returns = jnp.zeros(slot_of_seat.shape, jnp.float32)
+        first_life = jnp.ones(slot_of_seat.shape, jnp.bool_)
+
+        def _step(carry, key):
+            env_state, timestep, carries, returns, first_life = carry
+            action_key, env_key = jax.random.split(key)
+
+            # (checkpoints, seats, 1, ...): each checkpoint sees its own seats
+            seated = jax.tree.map(lambda x: x[slot_of_seat][:, :, None], timestep)
+
+            actions, next_carries = [], []
+            group_keys = jax.random.split(action_key, len(groups))
+            for group, state, group_carry, group_key, (start, stop) in zip(
+                groups, states, carries, group_keys, pairwise(group_starts)
+            ):
+                action, group_carry = group.act(
+                    state, _rows(seated, start, stop), group_carry, group_key
+                )
+                actions.append(action)
+                next_carries.append(group_carry)
+
+            # every slot is some seat's, so this fills all of them
+            env_actions = jnp.zeros((env.num_agents,), index_type)
+            env_actions = env_actions.at[slot_of_seat].set(jnp.concatenate(actions))
+            env_state, timestep = env.step(env_state, env_actions, env_key)
+
+            # the reward of the step that ends a life still belongs to it
+            reward = jnp.asarray(timestep.reward)[slot_of_seat]
+            returns = returns + jnp.where(first_life, reward, 0.0)
+            first_life = first_life & ~jnp.asarray(timestep.terminated)[slot_of_seat]
+
+            return (env_state, timestep, tuple(next_carries), returns, first_life), None
+
+        (_, _, _, returns, _), _ = jax.lax.scan(
+            _step,
+            (env_state, timestep, carries, returns, first_life),
+            jax.random.split(rollout_key, max_steps),
         )
 
-    policy1_carry = policy1.initialize_carry(team_size, rngs)
-    policy2_carry = policy2.initialize_carry(team_size, rngs)
-
-    policy1_idx = jnp.where(teams == 0, fill_value=-1, size=team_size)
-    policy2_idx = jnp.where(teams == 1, fill_value=-1, size=team_size)
-
-    state, ts = env.reset(rngs.env())
-
-    def _step(_, x):
-        (
-            state,
-            ts,
-            policy1_carry,
-            policy2_carry,
-            policy1_reward,
-            policy2_reward,
-            rngs,
-        ) = x
-
-        ts = add_seq_dim(ts)
-
-        policy1_ts: TimeStep = jax.tree.map(lambda item: item[policy1_idx], ts)
-        policy2_ts: TimeStep = jax.tree.map(lambda item: item[policy2_idx], ts)
-
-        # override the task id's in case they are different for different models
-        policy1_ts = policy1_ts._replace(
-            task_ids=jnp.full((policy1_ts.obs.shape[0],), policy1_task_id)
-        )
-        policy2_ts = policy2_ts._replace(
-            task_ids=jnp.full((policy2_ts.obs.shape[0],), policy2_task_id)
-        )
-
-        _, a1, policy1_carry = policy1(policy1_ts, policy1_carry)
-        _, a2, policy2_carry = policy2(policy2_ts, policy2_carry)
-
-        a1 = a1.sample(seed=rngs.action()).squeeze(-1).astype(index_type)
-        a2 = a2.sample(seed=rngs.action()).squeeze(-1).astype(index_type)
-
-        actions = jnp.zeros((env.num_agents,), index_type)
-        actions = actions.at[policy1_idx].set(a1)
-        actions = actions.at[policy2_idx].set(a2)
-
-        state, ts = env.step(state, actions, rngs.env())
-
-        policy1_reward = policy1_reward + policy1_ts.reward.sum()
-        policy2_reward = policy2_reward + policy2_ts.reward.sum()
+        def _per_task(values):
+            return jnp.einsum("cs,cst->ct", values, seat_task)
 
         return (
-            state,
-            ts,
-            policy1_carry,
-            policy2_carry,
-            policy1_reward,
-            policy2_reward,
-            rngs,
+            _per_task(returns),
+            _per_task(jnp.square(returns)),
+            _per_task(jnp.ones_like(returns)),
         )
 
-    _, _, _, _, policy1_reward, policy2_reward, rngs = nnx.fori_loop(
-        0,
-        max_steps,
-        _step,
-        (
-            state,
-            ts,
-            policy1_carry,
-            policy2_carry,
-            jnp.float32(0.0),
-            jnp.float32(0.0),
-            rngs,
-        ),
-    )
+    @jax.jit
+    def _league(states: tuple[nnx.State, ...], key: jax.Array):
+        _, stats = jax.lax.scan(
+            lambda _, round_key: (None, _round(states, round_key)),
+            None,
+            jax.random.split(key, rounds),
+        )
+        return stats
 
-    return policy1_reward, policy2_reward, rngs
+    return _league
 
 
-def load_policy(
-    experiment: Experiment,
-    env: Environment,
-    env_name: str | None,
-    max_steps: int,
-    task_count: int,
-    rngs: nnx.Rngs,
-) -> list[PolicyRecord]:
-    model_template = TransformerActorCritic(
-        experiment.config.learner.model,
-        env.observation_spec,
-        env.action_spec.n,
-        max_seq_length=max_steps,
-        task_count=task_count,
-        rngs=rngs,
-    )
+def load_league(
+    experiments: list[Experiment], env: Environment, max_steps: int
+) -> tuple[list[Checkpoint], list[PolicyGroup]]:
+    """Restore every checkpoint of every run, grouped by architecture.
 
-    task_id = 0
-    if env_name is not None and env_name in env.task_names:
-        task_id = env.task_names.index(env_name)
+    The checkpoints come back in group order, which is the order of the league's
+    checkpoint axis.
+    """
+    by_model: dict[Any, list[Experiment]] = {}
+    for experiment in experiments:
+        by_model.setdefault(experiment.config.learner.model, []).append(experiment)
 
-    policies = []
+    checkpoints: list[Checkpoint] = []
+    groups: list[PolicyGroup] = []
 
-    with Checkpointer(experiment.checkpoints_url) as checkpointer:
-        for step in checkpointer.mngr.all_steps():
-            checkpointer.restore(model_template, step)
-            model = nnx.clone(model_template)
-            policy = PolicyRecord(
-                experiment.unique_token, step, trueskill.Rating(), model, task_id
+    for model_config, group_experiments in by_model.items():
+        template = TransformerActorCritic(
+            model_config,
+            env.observation_spec,
+            env.action_spec.n,
+            max_seq_length=max_steps,
+            task_count=env.num_tasks,
+            rngs=nnx.Rngs(0),
+        )
+        treedef = jax.tree.structure(nnx.state(template))
+
+        weights = []
+        for experiment in group_experiments:
+            with Checkpointer(experiment.checkpoints_url) as checkpointer:
+                for step in checkpointer.mngr.all_steps():
+                    checkpointer.restore(template, step)
+                    # onto the host: a pool's worth of loose checkpoints on the
+                    # gpu doubles the weights there and fragments what is left
+                    leaves = jax.tree.leaves(nnx.state(template))
+                    weights.append([np.asarray(leaf) for leaf in leaves])
+                    checkpoints.append(Checkpoint(experiment.unique_token, step))
+
+        if weights:
+            stacked = [jnp.asarray(np.stack(leaves)) for leaves in zip(*weights)]
+            state = jax.tree.unflatten(treedef, stacked)
+            groups.append(PolicyGroup(template, state, len(weights)))
+
+    return checkpoints, groups
+
+
+def _task_layout(node: Any) -> Any:
+    """The part of an environment config that decides its tasks and vocabulary:
+    the env types and task names, without their settings."""
+    if isinstance(node, dict):
+        return {
+            key: _task_layout(value)
+            for key, value in node.items()
+            if key in ("env_type", "name") or isinstance(value, (dict, list, tuple))
+        }
+    if isinstance(node, (list, tuple)):
+        return [_task_layout(value) for value in node]
+    return node
+
+
+def league_env(
+    experiments: list[Experiment], env_config: str | None, console: Console
+) -> tuple[EnvironmentConfig, int]:
+    """The environment config and episode length the league is played with:
+    those of the training config at `env_config`, or else of the first run.
+
+    Every run has to have trained on the same tasks as it, since the tasks
+    decide the vocabulary, but their settings are free to differ. That is how a
+    league is scaled to the gpu: by a config with fewer games of each task.
+    """
+    if env_config is None:
+        source = experiments[0].unique_token
+        config = experiments[0].config
+    else:
+        source = env_config
+        with fsspec.open(env_config, "r") as f:
+            config = load_config(f.read())
+
+    environment, max_steps = config.environment, config.max_env_steps
+    layout = _task_layout(environment.model_dump())
+
+    for experiment in experiments:
+        trained = experiment.config
+        if _task_layout(trained.environment.model_dump()) != layout:
+            raise ValueError(
+                f"{experiment.unique_token} trained on different tasks than "
+                f"{source}, so they don't share a vocabulary"
             )
-            policies.append(policy)
 
-    return policies
+        # a difference from a config that was asked for is no surprise
+        if env_config is None and (
+            trained.environment != environment or trained.max_env_steps != max_steps
+        ):
+            console.print(
+                f"[yellow]{experiment.unique_token} trained with different env "
+                f"settings; it is evaluated with those of {source}"
+            )
+
+    return environment, max_steps
+
+
+def summarize(
+    checkpoints: list[Checkpoint],
+    task_names: list[str],
+    total: np.ndarray,
+    total_squares: np.ndarray,
+    count: np.ndarray,
+) -> pd.DataFrame:
+    """One row per checkpoint and task from the league's per-round sums."""
+    total = total.astype(np.float64).sum(axis=0)
+    total_squares = total_squares.astype(np.float64).sum(axis=0)
+    count = count.astype(np.float64).sum(axis=0)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        mean = total / count
+        variance = (total_squares / count - np.square(mean)) * count / (count - 1)
+        sem = np.sqrt(np.maximum(variance, 0.0) / count)
+    # one sample has no spread to estimate
+    sem = np.where(count > 1, sem, np.nan)
+
+    return pd.DataFrame(
+        [
+            (
+                checkpoint.run,
+                checkpoint.step,
+                task_name,
+                mean[i, task],
+                sem[i, task],
+                int(count[i, task]),
+            )
+            for i, checkpoint in enumerate(checkpoints)
+            for task, task_name in enumerate(task_names)
+        ],
+        columns=["run", "step", "task", "mean", "sem", "count"],
+    )
+
+
+def print_summary(console: Console, df: pd.DataFrame) -> None:
+    """A table per run of the mean first-life returns; the csv has the errors."""
+    tasks = list(dict.fromkeys(df["task"]))
+
+    for run, run_df in df.groupby("run", sort=False):
+        table = Table(title=f"Mean first-life return: {run}")
+        table.add_column("step", justify="right")
+        for task in tasks:
+            table.add_column(task, justify="right")
+
+        means = run_df.pivot(index="step", columns="task", values="mean")
+        for step, row in means.sort_index().iterrows():
+            table.add_row(str(step), *(f"{row[task]:.2f}" for task in tasks))
+        console.print(table)
 
 
 def evaluate(
     run_tokens: list[str],
-    env_name: str | None,
     seed: int,
     rounds: int,
     output_name: str,
-):
+    base_dir: str = "results",
+    env_config: str | None = None,
+) -> pd.DataFrame:
     console = Console()
 
-    experiment = Experiment.load(run_tokens[0], base_dir="results")
-    max_steps = experiment.config.max_env_steps
-
-    env_factory = create_env_factory()
-
-    env = env_factory.create_env(experiment.config.environment, max_steps)
-    if env_name is not None and env_name in env.task_names:
-        env.set_enjoy_mode(env.task_names.index(env_name))
-    rngs = nnx.Rngs(default=seed)
-
-    league: list[PolicyRecord] = []
     run_tokens = list(dict.fromkeys(run_tokens))
+    experiments = [Experiment.load(name, base_dir=base_dir) for name in run_tokens]
+    environment, max_steps = league_env(experiments, env_config, console)
+    env = create_env_factory().create_env(environment, max_steps)
 
-    for name in run_tokens:
-        console.print(f"Loading: {name}")
-        experiment = Experiment.load(name, base_dir="results")
-        policies = load_policy(
-            experiment, env, env_name, max_steps, env.num_tasks, rngs
-        )
-        league.extend(policies)
+    checkpoints, groups = load_league(experiments, env, max_steps)
+    if not checkpoints:
+        raise ValueError("none of the runs has a checkpoint")
 
-    for _ in progress.track(
-        range(rounds), description="Ranking rounds", console=console
-    ):
-        agents = random.choices(league, k=2)
-
-        policy1_reward, policy2_reward, rngs = _round(
-            env,
-            agents[0].model,
-            agents[1].model,
-            agents[0].task_id,
-            agents[1].task_id,
-            max_steps,
-            rngs,
-        )
-        winner, loser = (
-            agents if policy1_reward > policy2_reward else (agents[1], agents[0])
+    task_names = env.task_names or ["all"]
+    if len(task_names) != env.num_tasks:
+        raise ValueError(
+            f"the env names {len(task_names)} tasks but plays {env.num_tasks}"
         )
 
-        winner_rating, loser_rating = trueskill.rate_1vs1(winner.rating, loser.rating)
-        winner.rating = winner_rating
-        loser.rating = loser_rating
-
-    df = pd.DataFrame(
-        [
-            (policy.name, policy.step, policy.rating.mu, policy.rating.sigma)
-            for policy in league
-        ],
-        columns=["run", "step", "mu", "sigma"],
+    seats = seats_per_checkpoint(env.num_agents, len(checkpoints))
+    console.print(
+        f"{len(checkpoints)} checkpoints of {len(groups)} architecture(s), "
+        f"{rounds} rounds of {max_steps} steps, "
+        f"{seats} of the {env.num_agents} agents per checkpoint"
     )
 
-    df.to_csv(output_name + ".csv")
-    save_ranking_plot(df, output_name + ".png")
+    league = make_league_eval(env, groups, max_steps, rounds)
+    with console.status("Playing the league"):
+        stats = league(tuple(group.state for group in groups), jax.random.key(seed))
+    total, total_squares, count = (np.asarray(x) for x in stats)
+
+    df = summarize(checkpoints, task_names, total, total_squares, count)
+    print_summary(console, df)
+
+    df.to_csv(output_name + ".csv", index=False)
+    save_eval_plot(df, output_name + ".png")
+
+    return df
 
 
 @app.command()
@@ -233,21 +388,39 @@ def main(
         list[str],
         typer.Option(
             ...,
-            help="Existing experiment run token (under results/)",
+            help="Existing experiment run token (under the base dir)",
             rich_help_panel="Input",
         ),
     ],
-    out: Annotated[str, typer.Option(help="The path and name of the results to save")],
-    env: Annotated[
-        str | None,
-        typer.Option(help="Select a specific env when using a multi env config."),
-    ] = None,
+    out: Annotated[
+        str, typer.Option(help="Path of the results to save, without an extension")
+    ],
     seed: Annotated[int, typer.Option(help="Random seed for RNGs.")] = 0,
     rounds: Annotated[
-        int, typer.Option(help="Number of head-to-head rounds to run.")
-    ] = 1000,
+        int,
+        typer.Option(help="Rollouts of the whole env batch, reshuffled each time."),
+    ] = 8,
+    base_dir: Annotated[
+        str, typer.Option(help="Directory the runs are stored under.")
+    ] = "results",
+    env_config: Annotated[
+        str | None,
+        typer.Option(
+            help="Training config whose environment and max_env_steps the "
+            "league is played with, in place of the first run's. It needs the "
+            "same tasks as the runs. This is where the games of each task are set "
+            "so that the env's agents divide evenly between the checkpoints."
+        ),
+    ] = None,
 ):
-    evaluate(run, env_name=env, seed=seed, rounds=rounds, output_name=out)
+    evaluate(
+        run,
+        seed=seed,
+        rounds=rounds,
+        output_name=out,
+        base_dir=base_dir,
+        env_config=env_config,
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,12 @@
 import os
 import shutil
+import sys
+
+# a league fills the gpu with as many checkpoints and games as it holds, and
+# jax's default keeps a quarter of it back. The share is fixed once mapox
+# imports jax, so it is set ahead of the imports below
+if sys.argv[1:2] == ["eval"]:
+    os.environ.setdefault("XLA_PYTHON_CLIENT_MEM_FRACTION", "0.95")
 
 import jax
 import typer
