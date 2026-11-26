@@ -5,9 +5,11 @@ shuffle of all of them, redone every round, so a checkpoint's teammates and
 opponents are random draws from the pool. A checkpoint is scored by the mean
 return of the first life of the slots it played, per task.
 
-Every checkpoint plays the same number of slots, so the env's agent count has
-to be a multiple of the pool size. How many of them are of each task is up to
-the shuffle, and evens out over the rounds.
+Every checkpoint has the same number of seats, enough between them for all the
+slots. When the slots don't fill them, the seats left over stay empty for the
+round, at most one per checkpoint, and which checkpoints are a slot short is
+redrawn every round. How many of a checkpoint's slots are of each task is up
+to the shuffle too, and evens out over the rounds.
 """
 
 from dataclasses import dataclass
@@ -73,25 +75,38 @@ class PolicyGroup:
 
 
 def seats_per_checkpoint(num_slots: int, num_checkpoints: int) -> int:
-    """How many of the env's agent slots each checkpoint plays in a round."""
-    seats, left_over = divmod(num_slots, num_checkpoints)
-    if left_over:
-        raise ValueError(
-            f"the env's {num_slots} agents don't divide evenly between the "
-            f"{num_checkpoints} checkpoints. Pass --env-config a config whose "
-            f"agent count is a multiple of {num_checkpoints}."
-        )
-    return seats
+    """How many seats each checkpoint has in a round: the fewest that hold all
+    of the env's agent slots between them."""
+    return -(-num_slots // num_checkpoints)
+
+
+def agents_per_checkpoint(num_slots: int, num_checkpoints: int) -> str:
+    """The slots a checkpoint plays in a round, which is one of two counts when
+    the slots leave seats empty."""
+    most = seats_per_checkpoint(num_slots, num_checkpoints)
+    fewest = num_slots // num_checkpoints
+    return str(most) if fewest == most else f"{fewest} or {most}"
 
 
 def assign_seats(key: jax.Array, num_slots: int, num_checkpoints: int) -> jax.Array:
-    """Deal the env's slots out evenly between the checkpoints, at random.
+    """Deal the env's slots out between the checkpoints at random, as evenly as
+    they go.
 
     Returns the env slot behind each seat, shaped (checkpoints, seats): a row is
-    the slots one checkpoint plays, of whichever tasks the shuffle gave it.
+    the slots one checkpoint plays, of whichever tasks the shuffle gave it. The
+    seats the slots don't fill are empty, which is marked by `num_slots`, one
+    past the last slot.
     """
     seats = seats_per_checkpoint(num_slots, num_checkpoints)
-    return jax.random.permutation(key, num_slots).reshape(num_checkpoints, seats)
+    deal_key, row_key = jax.random.split(key)
+
+    deck = jnp.full((num_checkpoints * seats,), num_slots)
+    deck = deck.at[:num_slots].set(jax.random.permutation(deal_key, num_slots))
+    # dealt a seat at a time, so the empty seats at the end of the deck go to
+    # as many checkpoints, one each
+    slot_of_seat = deck.reshape(seats, num_checkpoints).T
+    # and those are a different draw of the checkpoints every round
+    return jax.random.permutation(row_key, slot_of_seat)
 
 
 def make_league_eval(
@@ -114,6 +129,10 @@ def make_league_eval(
         seat_key, reset_key, rollout_key = jax.random.split(key, 3)
 
         slot_of_seat = assign_seats(seat_key, env.num_agents, num_checkpoints)
+        # an empty seat still takes a place in its checkpoint's batch. It reads
+        # slot 0, and neither its action nor its return goes anywhere
+        occupied = slot_of_seat < env.num_agents
+        read_slot = jnp.where(occupied, slot_of_seat, 0)
 
         env_state, timestep = env.reset(reset_key)
         # a slot plays one task for the whole round; an env of one task names none
@@ -121,18 +140,20 @@ def make_league_eval(
             task_of_slot = jnp.zeros((env.num_agents,), jnp.int32)
         else:
             task_of_slot = jnp.asarray(timestep.task_ids)
-        # (checkpoints, seats, tasks): the task each seat's return counts toward
-        seat_task = jax.nn.one_hot(task_of_slot[slot_of_seat], env.num_tasks)
+        # (checkpoints, seats, tasks): the task each seat's return counts toward,
+        # which for an empty seat is none of them
+        seat_task = jax.nn.one_hot(task_of_slot[read_slot], env.num_tasks)
+        seat_task = seat_task * occupied[:, :, None]
         carries = tuple(group.initialize_carry(seats) for group in groups)
         returns = jnp.zeros(slot_of_seat.shape, jnp.float32)
-        first_life = jnp.ones(slot_of_seat.shape, jnp.bool_)
+        first_life = occupied
 
         def _step(carry, key):
             env_state, timestep, carries, returns, first_life = carry
             action_key, env_key = jax.random.split(key)
 
             # (checkpoints, seats, 1, ...): each checkpoint sees its own seats
-            seated = jax.tree.map(lambda x: x[slot_of_seat][:, :, None], timestep)
+            seated = jax.tree.map(lambda x: x[read_slot][:, :, None], timestep)
 
             actions, next_carries = [], []
             group_keys = jax.random.split(action_key, len(groups))
@@ -145,15 +166,18 @@ def make_league_eval(
                 actions.append(action)
                 next_carries.append(group_carry)
 
-            # every slot is some seat's, so this fills all of them
+            # every slot is some seat's, so this fills all of them. An empty
+            # seat's slot is out of bounds, which drops its action
             env_actions = jnp.zeros((env.num_agents,), index_type)
-            env_actions = env_actions.at[slot_of_seat].set(jnp.concatenate(actions))
+            env_actions = env_actions.at[slot_of_seat].set(
+                jnp.concatenate(actions), mode="drop"
+            )
             env_state, timestep = env.step(env_state, env_actions, env_key)
 
             # the reward of the step that ends a life still belongs to it
-            reward = jnp.asarray(timestep.reward)[slot_of_seat]
+            reward = jnp.asarray(timestep.reward)[read_slot]
             returns = returns + jnp.where(first_life, reward, 0.0)
-            first_life = first_life & ~jnp.asarray(timestep.terminated)[slot_of_seat]
+            first_life = first_life & ~jnp.asarray(timestep.terminated)[read_slot]
 
             return (env_state, timestep, tuple(next_carries), returns, first_life), None
 
@@ -361,11 +385,11 @@ def evaluate(
             f"the env names {len(task_names)} tasks but plays {env.num_tasks}"
         )
 
-    seats = seats_per_checkpoint(env.num_agents, len(checkpoints))
     console.print(
         f"{len(checkpoints)} checkpoints of {len(groups)} architecture(s), "
         f"{rounds} rounds of {max_steps} steps, "
-        f"{seats} of the {env.num_agents} agents per checkpoint"
+        f"{agents_per_checkpoint(env.num_agents, len(checkpoints))} of the "
+        f"{env.num_agents} agents per checkpoint"
     )
 
     league = make_league_eval(env, groups, max_steps, rounds)
@@ -409,7 +433,7 @@ def main(
             help="Training config whose environment and max_env_steps the "
             "league is played with, in place of the first run's. It needs the "
             "same tasks as the runs. This is where the games of each task are set "
-            "so that the env's agents divide evenly between the checkpoints."
+            "to fit the league to the GPU."
         ),
     ] = None,
 ):

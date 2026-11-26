@@ -25,6 +25,7 @@ from mapox_trainer.config import (
 from mapox_trainer.eval import (
     Checkpoint,
     PolicyGroup,
+    agents_per_checkpoint,
     assign_seats,
     league_env,
     load_league,
@@ -153,9 +154,29 @@ def test_every_slot_gets_one_seat():
     assert sorted(slot_of_seat.flat) == list(range(18))
 
 
-def test_agents_the_pool_does_not_divide_are_refused():
-    with pytest.raises(ValueError, match="17 agents don't divide evenly"):
-        assign_seats(jax.random.key(0), 17, 3)
+def test_slots_the_pool_does_not_divide_leave_seats_empty():
+    slot_of_seat = np.asarray(assign_seats(jax.random.key(0), 17, 3))
+
+    assert slot_of_seat.shape == (3, 6)
+    # the one seat more than there are slots is marked by a slot past the last
+    assert sorted(slot_of_seat.flat) == list(range(18))
+    assert sorted((slot_of_seat < 17).sum(axis=1)) == [5, 6, 6]
+
+
+def test_a_pool_larger_than_the_env_sits_some_checkpoints_out():
+    slot_of_seat = np.asarray(assign_seats(jax.random.key(0), 5, 8))
+
+    assert slot_of_seat.shape == (8, 1)
+    assert sorted(slot_of_seat.flat) == [0, 1, 2, 3, 4, 5, 5, 5]
+
+
+def test_the_checkpoints_a_slot_short_are_redrawn_by_the_key():
+    short = set()
+    for key in jax.random.split(jax.random.key(0), 32):
+        slot_of_seat = np.asarray(assign_seats(key, 17, 3))
+        short.update(np.flatnonzero((slot_of_seat == 17).any(axis=1)).tolist())
+
+    assert short == {0, 1, 2}
 
 
 def test_the_seats_are_reshuffled_by_the_key():
@@ -165,13 +186,30 @@ def test_the_seats_are_reshuffled_by_the_key():
     assert not np.array_equal(first, second)
 
 
-def test_league_scores_the_first_life_of_every_slot():
-    # the pool divides the 18 slots but neither task's, so a checkpoint's seats
-    # of a task change from round to round
-    env = LivesEnv((7, 11))
+def test_agents_per_checkpoint_names_both_counts_of_an_uneven_deal():
+    assert agents_per_checkpoint(18, 3) == "6"
+    assert agents_per_checkpoint(17, 3) == "5 or 6"
+    assert agents_per_checkpoint(5, 8) == "0 or 1"
+
+
+@pytest.mark.parametrize(
+    "task_sizes",
+    [
+        # the pool divides the 18 slots but neither task's, so a checkpoint's
+        # seats of a task change from round to round
+        (7, 11),
+        # 19 slots leave two of the 21 seats empty. An empty seat reads slot 0,
+        # whose action the last slot is not paid for
+        (7, 12),
+        # fewer slots than checkpoints: one sits out every round
+        (1, 1),
+    ],
+)
+def test_league_scores_the_first_life_of_every_slot(task_sizes):
+    env = LivesEnv(task_sizes)
     # two architectures
     groups = [make_group(env, 1, [0, 1]), make_group(env, 2, [2])]
-    task_of_slot = np.repeat([0, 1], [7, 11])
+    task_of_slot = np.repeat([0, 1], task_sizes)
     rounds = 3
 
     league = make_league_eval(env, groups, MAX_STEPS, rounds)
@@ -179,8 +217,12 @@ def test_league_scores_the_first_life_of_every_slot():
     total, count = np.asarray(total), np.asarray(count)
 
     assert total.shape == count.shape == (rounds, 3, 2)
-    # every checkpoint plays 6 seats a round, between the two tasks
-    assert np.all(count.sum(axis=2) == 6)
+    # every checkpoint plays its share of the slots, give or take the one that
+    # an empty seat costs it, between the two tasks
+    played = count.sum(axis=2)
+    assert np.all(played.sum(axis=1) == env.num_agents)
+    assert np.all(played >= env.num_agents // 3)
+    assert np.all(played <= -(-env.num_agents // 3))
     for task in range(2):
         slots = np.flatnonzero(task_of_slot == task)
         # each round every slot is played once, by one checkpoint or another

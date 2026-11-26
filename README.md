@@ -154,7 +154,7 @@ Set `env_type` directly for a single environment (e.g. `"find_return"`, `"king_h
 
 ### Evaluating Runs
 
-To track progress and compare training runs, `eval` loads every checkpoint of the given runs into one pool and plays them together. Each round all of the env's agent slots are shuffled and dealt out evenly between the checkpoints, so a checkpoint's teammates and opponents are random draws from the pool. A checkpoint's score is the mean return of the first life of the slots it played, per task.
+To track progress and compare training runs, `eval` loads every checkpoint of the given runs into one pool and plays them together. Each round all of the env's agent slots are shuffled and dealt out between the checkpoints as evenly as they go, so a checkpoint's teammates and opponents are random draws from the pool. A checkpoint's score is the mean return of the first life of the slots it played, per task.
 
 ```bash
 uv run pmarl eval --run blue-whale --run red-fish --rounds 8 --out ./analysis/graph
@@ -164,13 +164,13 @@ This writes `graph.csv` (mean, standard error and sample count for each checkpoi
 
 To play in a different env, pass `--env-config` a training config: its `environment` and `max_env_steps` are used in place of the first run's. It needs the same tasks as the runs, but their settings can differ.
 
-Every checkpoint plays the same number of agents, so the env's total agent count must be a multiple of the number of checkpoints in the pool; `eval` stops with an error otherwise. `--env-config` is the way to get there: copy a run's `config.json` and set the games of each task (`num`) so that the total divides. How many agents of each task a checkpoint gets varies from round to round, so the `count` column differs a little between checkpoints.
-
 ```bash
 uv run pmarl eval --run blue-whale --env-config ./config/blue-whale-small.json --out ./analysis/graph
 ```
 
-That is also how a league is fit to a smaller GPU than the runs trained on. All the checkpoints are on the GPU at once, and every agent keeps an attention cache for the whole episode, so memory grows with both the pool and the batch. Copy the training config and lower the `num` of each task, keeping the total agent count a multiple of the pool's size. `eval` takes 95% of the GPU's memory by default, which `XLA_PYTHON_CLIENT_MEM_FRACTION` overrides.
+That is how a league is fit to a smaller GPU than the runs trained on. All the checkpoints are on the GPU at once, and every agent keeps an attention cache for the whole episode, so memory grows with both the pool and the batch. Copy the training config and lower the `num` of each task. `eval` takes 95% of the GPU's memory by default, which `XLA_PYTHON_CLIENT_MEM_FRACTION` overrides.
+
+The env's agent count doesn't have to be a multiple of the number of checkpoints in the pool. When it isn't, some checkpoints play one agent fewer than the others in a round, and which ones is redrawn every round. How many agents of each task a checkpoint gets varies from round to round as well, so the `count` column differs a little between checkpoints. A pool with more checkpoints than the env has agents works too: each round some of them sit out, so give it enough `--rounds` for every checkpoint to get samples of every task.
 
 ---
 
