@@ -10,7 +10,7 @@ from flax import nnx
 from rich.console import Console
 from tensorboardX import SummaryWriter
 
-import wandb
+# import wandb
 from mapox_trainer.config import Config
 from mapox_trainer.experiment import Experiment
 from mapox_trainer.util import json_normalize
@@ -55,8 +55,8 @@ class JaxLogger:
             loggers.append(ConsoleLogger(unique_token, console))
         if logger_config.use_jsonl:
             loggers.append(JsonLogger(experiment.experiment_url))
-        if logger_config.use_wandb:
-            loggers.append(WandbLogger(unique_token, experiment.config))
+        # if logger_config.use_wandb:
+        #     loggers.append(WandbLogger(unique_token, experiment.config))
 
         self.logger = MultiLogger(loggers)
 
@@ -129,19 +129,19 @@ class JsonLogger(BaseLogger):
             self._file.flush()
 
 
-class WandbLogger(BaseLogger):
-    def __init__(self, unique_token: str, settings: Config):
-        wandb.init(
-            project="mapox_trainer", name=unique_token, config=dump_settings(settings)
-        )
-
-    def log_dict(self, data: Metrics, step: int) -> None:
-        normalized_data = json_normalize(data)
-
-        wandb.log(normalized_data, step=step)
-
-    def close(self) -> None:
-        wandb.finish()
+# class WandbLogger(BaseLogger):
+#     def __init__(self, unique_token: str, settings: Config):
+#         wandb.init(
+#             project="mapox_trainer", name=unique_token, config=dump_settings(settings)
+#         )
+#
+#     def log_dict(self, data: Metrics, step: int) -> None:
+#         normalized_data = json_normalize(data)
+#
+#         wandb.log(normalized_data, step=step)
+#
+#     def close(self) -> None:
+#         wandb.finish()
 
 
 def describe(x: dict) -> dict:

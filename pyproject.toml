@@ -20,9 +20,7 @@ dependencies = [
     "safetensors>=0.8.0",
     "seaborn>=0.13.2",
     "tensorboardx>=2.6.2.2",
-    "trueskill>=0.4.5",
     "typer>=0.15.3",
-    "wandb>=0.19.10",
 ]
 
 [project.optional-dependencies]
