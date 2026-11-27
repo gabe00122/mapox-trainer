@@ -1224,7 +1224,7 @@ wheels = [
 [[package]]
 name = "mapox"
 version = "1.0.0"
-source = { git = "https://github.com/gabe00122/mapox?rev=a2496ec9cb9626cbaba1a58dd455371c3a0daacd#a2496ec9cb9626cbaba1a58dd455371c3a0daacd" }
+source = { git = "https://github.com/gabe00122/mapox?rev=6e69b70c8824ce701aab48d56639feaab4a3de3d#6e69b70c8824ce701aab48d56639feaab4a3de3d" }
 dependencies = [
     { name = "einops" },
     { name = "jax" },
@@ -1283,7 +1283,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.11.1" },
     { name = "jax", extras = ["cuda13"], marker = "extra == 'cuda'" },
     { name = "jax", extras = ["tpu"], marker = "extra == 'tpu'" },
-    { name = "mapox", git = "https://github.com/gabe00122/mapox?rev=a2496ec9cb9626cbaba1a58dd455371c3a0daacd" },
+    { name = "mapox", git = "https://github.com/gabe00122/mapox?rev=6e69b70c8824ce701aab48d56639feaab4a3de3d" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "optax", specifier = ">=0.2.4" },
     { name = "orbax", specifier = ">=0.1.9" },
