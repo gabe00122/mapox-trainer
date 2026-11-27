@@ -38,7 +38,7 @@ include = ["mapox_trainer*"]
 exclude = ["config*", "videos*"]
 
 [tool.uv.sources]
-mapox = { git = "https://github.com/gabe00122/mapox", rev = "6e69b70c8824ce701aab48d56639feaab4a3de3d" }
+mapox = { git = "https://github.com/gabe00122/mapox", rev = "e1ad4729ceccb5f309599c4bfa372b3be0aa58bb" }
 
 
 [dependency-groups]
